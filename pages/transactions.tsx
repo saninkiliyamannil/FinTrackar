@@ -161,6 +161,47 @@ type GoalForm = {
   note: string;
 };
 
+type SharedSplitMethod = "EQUAL" | "CUSTOM";
+
+type SharedExpenseParticipant = {
+  id: string;
+  participantName: string;
+  shareAmount: number;
+  paidAmount: number;
+  isSettled: boolean;
+};
+
+type SharedExpenseItem = {
+  id: string;
+  title: string;
+  note: string | null;
+  totalAmount: number;
+  date: string;
+  splitMethod: SharedSplitMethod;
+  participants: SharedExpenseParticipant[];
+};
+
+type SharedExpensesResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: SharedExpenseItem[];
+  summary: {
+    totalAmount: number;
+    totalParticipants: number;
+    settledParticipants: number;
+  };
+};
+
+type SharedExpenseForm = {
+  title: string;
+  totalAmount: string;
+  date: string;
+  note: string;
+  splitMethod: SharedSplitMethod;
+  participantsText: string;
+};
+
 function currency(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -357,6 +398,16 @@ export default function TransactionsPage() {
     note: "",
   });
   const [goalFormError, setGoalFormError] = useState<string | null>(null);
+  const [sharedExpenses, setSharedExpenses] = useState<SharedExpensesResponse | null>(null);
+  const [sharedExpenseForm, setSharedExpenseForm] = useState<SharedExpenseForm>({
+    title: "",
+    totalAmount: "",
+    date: todayIsoDate(),
+    note: "",
+    splitMethod: "EQUAL",
+    participantsText: "",
+  });
+  const [sharedExpenseFormError, setSharedExpenseFormError] = useState<string | null>(null);
 
   const filteredCategories = useMemo(
     () => categories.filter((cat) => cat.type.toUpperCase() === createForm.type),
@@ -392,7 +443,8 @@ export default function TransactionsPage() {
         year: String(now.getUTCFullYear()),
       });
 
-      const [txRes, analyticsRes, breakdownRes, accountsRes, categoriesRes, budgetsRes, goalsRes] = await Promise.all([
+      const [txRes, analyticsRes, breakdownRes, accountsRes, categoriesRes, budgetsRes, goalsRes, sharedExpensesRes] =
+        await Promise.all([
         fetch(`/api/transactions?${txQuery.toString()}`).then((res) =>
           res.json() as Promise<Envelope<TransactionsResponse>>
         ),
@@ -408,6 +460,9 @@ export default function TransactionsPage() {
           res.json() as Promise<Envelope<BudgetsResponse>>
         ),
         fetch("/api/goals").then((res) => res.json() as Promise<Envelope<GoalsResponse>>),
+        fetch("/api/shared-expenses?page=1&pageSize=20").then((res) =>
+          res.json() as Promise<Envelope<SharedExpensesResponse>>
+        ),
       ]);
 
       if (txRes.code !== "OK" || !txRes.data) throw new Error(txRes.error?.message || "Failed to load transactions");
@@ -427,6 +482,9 @@ export default function TransactionsPage() {
       if (goalsRes.code !== "OK" || !goalsRes.data) {
         throw new Error(goalsRes.error?.message || "Failed goals");
       }
+      if (sharedExpensesRes.code !== "OK" || !sharedExpensesRes.data) {
+        throw new Error(sharedExpensesRes.error?.message || "Failed shared expenses");
+      }
 
       const txData = txRes.data;
       const analyticsData = analyticsRes.data;
@@ -435,6 +493,7 @@ export default function TransactionsPage() {
       const categoriesData = categoriesRes.data;
       const budgetsData = budgetsRes.data;
       const goalsData = goalsRes.data;
+      const sharedExpensesData = sharedExpensesRes.data;
 
       setTransactions(txData.items);
       setAnalytics(analyticsData);
@@ -443,6 +502,7 @@ export default function TransactionsPage() {
       setCategories(categoriesData);
       setBudgets(budgetsData);
       setGoals(goalsData);
+      setSharedExpenses(sharedExpensesData);
       if (!createForm.bankAccountId && accountsData.length > 0) {
         setCreateForm((prev) => ({ ...prev, bankAccountId: accountsData[0].id }));
       }
@@ -491,6 +551,15 @@ export default function TransactionsPage() {
       color: item.status === "COMPLETED" ? "#16a34a" : item.status === "ARCHIVED" ? "#64748b" : "#0284c7",
     }));
   }, [goals]);
+
+  const sharedExpensePieSlices = useMemo(() => {
+    const items = sharedExpenses?.items || [];
+    return items.map((item) => ({
+      label: item.title,
+      value: item.totalAmount,
+      color: item.splitMethod === "CUSTOM" ? "#0ea5e9" : "#8b5cf6",
+    }));
+  }, [sharedExpenses]);
 
   async function createTransaction() {
     const errors = validateForm(createForm);
@@ -956,6 +1025,116 @@ export default function TransactionsPage() {
     }
   }
 
+  function parseParticipantNames(raw: string) {
+    return raw
+      .split(/[\n,]/g)
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  async function createSharedExpense() {
+    setSharedExpenseFormError(null);
+    const totalAmount = Number(sharedExpenseForm.totalAmount);
+    const participants = parseParticipantNames(sharedExpenseForm.participantsText);
+
+    if (!sharedExpenseForm.title.trim()) {
+      setSharedExpenseFormError("Shared expense title is required");
+      return;
+    }
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      setSharedExpenseFormError("Total amount must be greater than 0");
+      return;
+    }
+    if (participants.length === 0) {
+      setSharedExpenseFormError("Add at least one participant");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/shared-expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: sharedExpenseForm.title.trim(),
+          totalAmount,
+          date: sharedExpenseForm.date,
+          note: sharedExpenseForm.note || undefined,
+          splitMethod: sharedExpenseForm.splitMethod,
+          participants: participants.map((participantName) => ({ participantName })),
+        }),
+      });
+      const payload = (await response.json()) as Envelope<SharedExpenseItem>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to create shared expense");
+      }
+      setSharedExpenseForm({
+        title: "",
+        totalAmount: "",
+        date: todayIsoDate(),
+        note: "",
+        splitMethod: "EQUAL",
+        participantsText: "",
+      });
+      void loadDashboardData();
+    } catch (err) {
+      setSharedExpenseFormError((err as Error).message || "Create shared expense failed");
+    }
+  }
+
+  async function deleteSharedExpense(id: string) {
+    setSharedExpenseFormError(null);
+    try {
+      const response = await fetch(`/api/shared-expenses/${id}`, { method: "DELETE" });
+      const payload = (await response.json()) as Envelope<{ ok: boolean }>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to delete shared expense");
+      }
+      void loadDashboardData();
+    } catch (err) {
+      setSharedExpenseFormError((err as Error).message || "Delete shared expense failed");
+    }
+  }
+
+  async function toggleParticipantSettled(expense: SharedExpenseItem, participantId: string) {
+    const nextParticipants = expense.participants.map((participant) =>
+      participant.id === participantId
+        ? {
+            participantName: participant.participantName,
+            shareAmount: participant.shareAmount,
+            paidAmount: participant.paidAmount,
+            isSettled: !participant.isSettled,
+          }
+        : {
+            participantName: participant.participantName,
+            shareAmount: participant.shareAmount,
+            paidAmount: participant.paidAmount,
+            isSettled: participant.isSettled,
+          }
+    );
+
+    try {
+      const response = await fetch(`/api/shared-expenses/${expense.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: expense.title,
+          totalAmount: expense.totalAmount,
+          splitMethod: expense.splitMethod,
+          note: expense.note,
+          date: expense.date,
+          participants: nextParticipants,
+        }),
+      });
+      const payload = (await response.json()) as Envelope<SharedExpenseItem>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to update participant status");
+      }
+      void loadDashboardData();
+    } catch (err) {
+      setSharedExpenseFormError((err as Error).message || "Update shared expense failed");
+    }
+  }
+
   function exportCsv() {
     const query = new URLSearchParams({
       ...(typeFilter !== "ALL" ? { type: typeFilter } : {}),
@@ -1319,6 +1498,103 @@ export default function TransactionsPage() {
             </div>
           </section>
         </div>
+
+        <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-base font-semibold text-slate-900">Shared Expenses</h3>
+            <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
+              {sharedExpenses?.summary.totalParticipants ?? 0} participants tracked
+            </span>
+          </div>
+
+          <div className="mt-3 grid gap-2 lg:grid-cols-3">
+            <input
+              className={inputClass}
+              value={sharedExpenseForm.title}
+              onChange={(e) => setSharedExpenseForm((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder="Expense title"
+            />
+            <input
+              className={inputClass}
+              value={sharedExpenseForm.totalAmount}
+              onChange={(e) => setSharedExpenseForm((prev) => ({ ...prev, totalAmount: e.target.value }))}
+              placeholder="Total amount"
+            />
+            <input
+              type="date"
+              className={inputClass}
+              value={sharedExpenseForm.date}
+              onChange={(e) => setSharedExpenseForm((prev) => ({ ...prev, date: e.target.value }))}
+            />
+            <select
+              className={selectClass}
+              value={sharedExpenseForm.splitMethod}
+              onChange={(e) => setSharedExpenseForm((prev) => ({ ...prev, splitMethod: e.target.value as SharedSplitMethod }))}
+            >
+              <option value="EQUAL">Equal split</option>
+              <option value="CUSTOM">Custom split</option>
+            </select>
+            <input
+              className={inputClass}
+              value={sharedExpenseForm.participantsText}
+              onChange={(e) => setSharedExpenseForm((prev) => ({ ...prev, participantsText: e.target.value }))}
+              placeholder="Participants (comma separated)"
+            />
+            <button onClick={createSharedExpense} className={primaryButtonClass}>
+              Add Shared Expense
+            </button>
+          </div>
+          <textarea
+            className={`${inputClass} mt-2 min-h-20`}
+            value={sharedExpenseForm.note}
+            onChange={(e) => setSharedExpenseForm((prev) => ({ ...prev, note: e.target.value }))}
+            placeholder="Optional note"
+          />
+          {sharedExpenseFormError && <p className="mt-2 text-sm text-rose-700">{sharedExpenseFormError}</p>}
+
+          <div className="mt-4 rounded-md border border-slate-200 p-3">
+            <PieChart slices={sharedExpensePieSlices} />
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {(sharedExpenses?.items || []).length === 0 && <p className="text-sm text-slate-600">No shared expenses yet.</p>}
+            {(sharedExpenses?.items || []).map((expense) => {
+              const settled = expense.participants.filter((participant) => participant.isSettled).length;
+              return (
+                <div key={expense.id} className="rounded-md border border-slate-200 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-slate-900">
+                      {expense.title} - {currency(expense.totalAmount)}
+                    </p>
+                    <button onClick={() => void deleteSharedExpense(expense.id)} className={dangerButtonClass}>
+                      Delete
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {new Date(expense.date).toLocaleDateString()} | {expense.splitMethod} | {settled}/
+                    {expense.participants.length} settled
+                  </p>
+                  {expense.note && <p className="mt-1 text-xs text-slate-500">{expense.note}</p>}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {expense.participants.map((participant) => (
+                      <button
+                        key={participant.id}
+                        onClick={() => void toggleParticipantSettled(expense, participant.id)}
+                        className={`rounded-md border px-2 py-1 text-xs ${
+                          participant.isSettled
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                            : "border-slate-300 bg-white text-slate-700"
+                        }`}
+                      >
+                        {participant.participantName}: {currency(participant.shareAmount)} {participant.isSettled ? "(Settled)" : "(Open)"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
         <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="text-base font-semibold text-slate-900">Create Transaction</h3>

@@ -21,6 +21,7 @@ model User {
   categories   Category[]
   budgets      Budget[]
   goals        Goal[]
+  sharedExpenses SharedExpense[]
 
   @@index([createdAt])
 }
@@ -119,6 +120,40 @@ model Goal {
   @@index([userId, status, targetDate])
 }
 
+model SharedExpense {
+  id          String            @id @default(cuid())
+  title       String
+  note        String?
+  totalAmount Decimal           @db.Decimal(14, 2)
+  date        DateTime          @default(now())
+  splitMethod SharedSplitMethod @default(EQUAL)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  participants SharedExpenseParticipant[]
+
+  @@index([userId, date])
+}
+
+model SharedExpenseParticipant {
+  id              String   @id @default(cuid())
+  participantName String
+  shareAmount     Decimal  @db.Decimal(14, 2)
+  paidAmount      Decimal  @default(0) @db.Decimal(14, 2)
+  isSettled       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sharedExpenseId String
+  sharedExpense   SharedExpense @relation(fields: [sharedExpenseId], references: [id], onDelete: Cascade)
+
+  @@index([sharedExpenseId, isSettled])
+  @@unique([sharedExpenseId, participantName])
+}
+
 model Tag {
   id   String @id @default(cuid())
   name String
@@ -157,4 +192,9 @@ enum GoalStatus {
   ACTIVE
   COMPLETED
   ARCHIVED
+}
+
+enum SharedSplitMethod {
+  EQUAL
+  CUSTOM
 }
