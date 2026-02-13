@@ -4,9 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { sendError, sendOk } from "@/lib/api/response";
 import { setSessionCookie } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/api/rate-limit";
+import { verifyPassword } from "@/lib/auth/password";
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(320),
+  password: z.string().min(8).max(72),
 });
 
 function getClientIdentifier(req: NextApiRequest) {
@@ -38,6 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const email = parsed.data.email.toLowerCase();
+  const password = parsed.data.password;
   const emailLimit = checkRateLimit({
     key: `auth:login:email:${email}`,
     limit: 12,
@@ -54,11 +57,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         id: true,
         email: true,
         displayName: true,
+        passwordHash: true,
       },
     });
 
     if (!user) {
-      return sendError(res, 401, "Invalid email", "INVALID_CREDENTIALS");
+      return sendError(res, 401, "Invalid email or password", "INVALID_CREDENTIALS");
+    }
+
+    const validPassword = await verifyPassword(password, user.passwordHash);
+    if (!validPassword) {
+      return sendError(res, 401, "Invalid email or password", "INVALID_CREDENTIALS");
     }
 
     await setSessionCookie(res, { userId: user.id, email: user.email });

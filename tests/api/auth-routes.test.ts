@@ -37,7 +37,7 @@ describe("auth routes", () => {
       const { req, res } = createMocks({
         method: "POST",
         headers: { "x-forwarded-for": "1.2.3.4" },
-        body: { email: "already@example.com" },
+        body: { email: "already@example.com", password: "Password123" },
       });
 
       await route(req as any, res as unknown as NextApiResponse);
@@ -57,7 +57,7 @@ describe("auth routes", () => {
       const { req, res } = createMocks({
         method: "POST",
         headers: { "x-forwarded-for": "5.6.7.8" },
-        body: { email: "missing@example.com" },
+        body: { email: "missing@example.com", password: "Password123" },
       });
 
       await route(req as any, res as unknown as NextApiResponse);

@@ -4,10 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { sendError, sendOk } from "@/lib/api/response";
 import { setSessionCookie } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/api/rate-limit";
+import { hashPassword } from "@/lib/auth/password";
 
 const signupSchema = z.object({
   email: z.string().trim().email().max(320),
   displayName: z.string().trim().min(1).max(120).optional(),
+  password: z
+    .string()
+    .min(8)
+    .max(72)
+    .regex(/[a-zA-Z]/, "Password must include at least one letter")
+    .regex(/[0-9]/, "Password must include at least one number"),
 });
 
 function getClientIdentifier(req: NextApiRequest) {
@@ -39,6 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const email = parsed.data.email.toLowerCase();
+  const password = parsed.data.password;
   const emailLimit = checkRateLimit({
     key: `auth:signup:email:${email}`,
     limit: 5,
@@ -58,9 +66,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return sendError(res, 409, "Email already registered", "EMAIL_EXISTS");
     }
 
+    const passwordHash = await hashPassword(password);
+
     const user = await prisma.user.create({
       data: {
         email,
+        passwordHash,
         displayName: parsed.data.displayName || null,
       },
       select: {
