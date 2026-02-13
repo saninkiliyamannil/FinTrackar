@@ -22,6 +22,9 @@ model User {
   budgets      Budget[]
   goals        Goal[]
   sharedExpenses SharedExpense[]
+  sharedGroupsCreated SharedGroup[] @relation("GroupCreator")
+  sharedGroupMemberships SharedGroupMember[]
+  sharedSettlementsCreated SharedSettlement[] @relation("SettlementCreator")
 
   @@index([createdAt])
 }
@@ -132,10 +135,13 @@ model SharedExpense {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId String?
+  group   SharedGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   participants SharedExpenseParticipant[]
 
   @@index([userId, date])
+  @@index([groupId, date])
 }
 
 model SharedExpenseParticipant {
@@ -152,6 +158,66 @@ model SharedExpenseParticipant {
 
   @@index([sharedExpenseId, isSettled])
   @@unique([sharedExpenseId, participantName])
+}
+
+model SharedGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  inviteCode  String   @unique
+  isPersonal  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdById String
+  createdBy   User @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  members      SharedGroupMember[]
+  expenses     SharedExpense[]
+  settlements  SharedSettlement[]
+
+  @@index([createdById, createdAt])
+}
+
+model SharedGroupMember {
+  id          String          @id @default(cuid())
+  displayName String
+  role        SharedGroupRole @default(MEMBER)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  groupId String
+  userId  String
+
+  group SharedGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outgoingSettlements SharedSettlement[] @relation("SettlementFromMember")
+  incomingSettlements SharedSettlement[] @relation("SettlementToMember")
+
+  @@unique([groupId, userId])
+  @@index([userId, createdAt])
+}
+
+model SharedSettlement {
+  id        String                 @id @default(cuid())
+  amount    Decimal                @db.Decimal(14, 2)
+  note      String?
+  status    SharedSettlementStatus @default(PROPOSED)
+  settledAt DateTime?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  groupId      String
+  fromMemberId String
+  toMemberId   String
+  createdById  String
+
+  group      SharedGroup      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  fromMember SharedGroupMember @relation("SettlementFromMember", fields: [fromMemberId], references: [id], onDelete: Cascade)
+  toMember   SharedGroupMember @relation("SettlementToMember", fields: [toMemberId], references: [id], onDelete: Cascade)
+  createdBy  User             @relation("SettlementCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([groupId, status, createdAt])
 }
 
 model Tag {
@@ -197,4 +263,15 @@ enum GoalStatus {
 enum SharedSplitMethod {
   EQUAL
   CUSTOM
+}
+
+enum SharedGroupRole {
+  OWNER
+  MEMBER
+}
+
+enum SharedSettlementStatus {
+  PROPOSED
+  SETTLED
+  CANCELED
 }

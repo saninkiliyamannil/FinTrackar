@@ -178,6 +178,12 @@ type SharedExpenseItem = {
   totalAmount: number;
   date: string;
   splitMethod: SharedSplitMethod;
+  groupId: string | null;
+  group?: {
+    id: string;
+    name: string;
+    inviteCode: string;
+  } | null;
   participants: SharedExpenseParticipant[];
 };
 
@@ -194,12 +200,55 @@ type SharedExpensesResponse = {
 };
 
 type SharedExpenseForm = {
+  groupId: string;
   title: string;
   totalAmount: string;
   date: string;
   note: string;
   splitMethod: SharedSplitMethod;
   participantsText: string;
+};
+
+type SharedGroupMember = {
+  id: string;
+  userId: string;
+  displayName: string;
+  role: "OWNER" | "MEMBER";
+};
+
+type SharedGroup = {
+  id: string;
+  name: string;
+  description: string | null;
+  inviteCode: string;
+  isPersonal: boolean;
+  members: SharedGroupMember[];
+  _count?: {
+    expenses: number;
+    settlements: number;
+  };
+};
+
+type SharedSettlementSuggestion = {
+  fromMemberId: string;
+  toMemberId: string;
+  fromDisplayName: string;
+  toDisplayName: string;
+  amount: number;
+};
+
+type SharedSettlementRecord = {
+  id: string;
+  amount: number;
+  status: "PROPOSED" | "SETTLED" | "CANCELED";
+  note: string | null;
+  fromMember: { id: string; displayName: string };
+  toMember: { id: string; displayName: string };
+};
+
+type SharedSettlementsResponse = {
+  suggestions: SharedSettlementSuggestion[];
+  settlements: SharedSettlementRecord[];
 };
 
 function currency(value: number) {
@@ -398,8 +447,15 @@ export default function TransactionsPage() {
     note: "",
   });
   const [goalFormError, setGoalFormError] = useState<string | null>(null);
+  const [sharedGroups, setSharedGroups] = useState<SharedGroup[]>([]);
+  const [selectedSharedGroupId, setSelectedSharedGroupId] = useState("");
+  const [sharedSettlements, setSharedSettlements] = useState<SharedSettlementsResponse | null>(null);
+  const [sharedGroupName, setSharedGroupName] = useState("");
+  const [sharedGroupJoinCode, setSharedGroupJoinCode] = useState("");
+  const [sharedGroupError, setSharedGroupError] = useState<string | null>(null);
   const [sharedExpenses, setSharedExpenses] = useState<SharedExpensesResponse | null>(null);
   const [sharedExpenseForm, setSharedExpenseForm] = useState<SharedExpenseForm>({
+    groupId: "",
     title: "",
     totalAmount: "",
     date: todayIsoDate(),
@@ -443,7 +499,7 @@ export default function TransactionsPage() {
         year: String(now.getUTCFullYear()),
       });
 
-      const [txRes, analyticsRes, breakdownRes, accountsRes, categoriesRes, budgetsRes, goalsRes, sharedExpensesRes] =
+      const [txRes, analyticsRes, breakdownRes, accountsRes, categoriesRes, budgetsRes, goalsRes, sharedGroupsRes] =
         await Promise.all([
         fetch(`/api/transactions?${txQuery.toString()}`).then((res) =>
           res.json() as Promise<Envelope<TransactionsResponse>>
@@ -460,9 +516,7 @@ export default function TransactionsPage() {
           res.json() as Promise<Envelope<BudgetsResponse>>
         ),
         fetch("/api/goals").then((res) => res.json() as Promise<Envelope<GoalsResponse>>),
-        fetch("/api/shared-expenses?page=1&pageSize=20").then((res) =>
-          res.json() as Promise<Envelope<SharedExpensesResponse>>
-        ),
+        fetch("/api/shared-groups").then((res) => res.json() as Promise<Envelope<SharedGroup[]>>),
       ]);
 
       if (txRes.code !== "OK" || !txRes.data) throw new Error(txRes.error?.message || "Failed to load transactions");
@@ -482,8 +536,8 @@ export default function TransactionsPage() {
       if (goalsRes.code !== "OK" || !goalsRes.data) {
         throw new Error(goalsRes.error?.message || "Failed goals");
       }
-      if (sharedExpensesRes.code !== "OK" || !sharedExpensesRes.data) {
-        throw new Error(sharedExpensesRes.error?.message || "Failed shared expenses");
+      if (sharedGroupsRes.code !== "OK" || !sharedGroupsRes.data) {
+        throw new Error(sharedGroupsRes.error?.message || "Failed shared groups");
       }
 
       const txData = txRes.data;
@@ -493,7 +547,34 @@ export default function TransactionsPage() {
       const categoriesData = categoriesRes.data;
       const budgetsData = budgetsRes.data;
       const goalsData = goalsRes.data;
-      const sharedExpensesData = sharedExpensesRes.data;
+      const sharedGroupsData = sharedGroupsRes.data;
+      const activeGroupId = selectedSharedGroupId || sharedGroupsData[0]?.id || "";
+
+      const sharedExpenseQuery = new URLSearchParams({
+        page: "1",
+        pageSize: "20",
+        ...(activeGroupId ? { groupId: activeGroupId } : {}),
+      });
+      const [sharedExpensesRes, settlementsRes] = await Promise.all([
+        fetch(`/api/shared-expenses?${sharedExpenseQuery.toString()}`).then((res) =>
+          res.json() as Promise<Envelope<SharedExpensesResponse>>
+        ),
+        activeGroupId
+          ? fetch(`/api/shared-groups/${activeGroupId}/settlements`).then((res) =>
+              res.json() as Promise<Envelope<SharedSettlementsResponse>>
+            )
+          : Promise.resolve({
+              code: "OK",
+              data: { suggestions: [], settlements: [] },
+              error: null,
+            } as Envelope<SharedSettlementsResponse>),
+      ]);
+      if (sharedExpensesRes.code !== "OK" || !sharedExpensesRes.data) {
+        throw new Error(sharedExpensesRes.error?.message || "Failed shared expenses");
+      }
+      if (settlementsRes.code !== "OK" || !settlementsRes.data) {
+        throw new Error(settlementsRes.error?.message || "Failed settlements");
+      }
 
       setTransactions(txData.items);
       setAnalytics(analyticsData);
@@ -502,7 +583,15 @@ export default function TransactionsPage() {
       setCategories(categoriesData);
       setBudgets(budgetsData);
       setGoals(goalsData);
-      setSharedExpenses(sharedExpensesData);
+      setSharedGroups(sharedGroupsData);
+      setSharedExpenses(sharedExpensesRes.data);
+      setSharedSettlements(settlementsRes.data);
+      if (!selectedSharedGroupId && activeGroupId) {
+        setSelectedSharedGroupId(activeGroupId);
+      }
+      if (!sharedExpenseForm.groupId && activeGroupId) {
+        setSharedExpenseForm((prev) => ({ ...prev, groupId: activeGroupId }));
+      }
       if (!createForm.bankAccountId && accountsData.length > 0) {
         setCreateForm((prev) => ({ ...prev, bankAccountId: accountsData[0].id }));
       }
@@ -517,7 +606,17 @@ export default function TransactionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [breakdownType, budgetForm.categoryId, createForm.bankAccountId, months, page, status, typeFilter]);
+  }, [
+    breakdownType,
+    budgetForm.categoryId,
+    createForm.bankAccountId,
+    months,
+    page,
+    selectedSharedGroupId,
+    sharedExpenseForm.groupId,
+    status,
+    typeFilter,
+  ]);
 
   useEffect(() => {
     void loadDashboardData();
@@ -1025,6 +1124,121 @@ export default function TransactionsPage() {
     }
   }
 
+  async function createSharedGroup() {
+    setSharedGroupError(null);
+    if (!sharedGroupName.trim()) {
+      setSharedGroupError("Group name is required");
+      return;
+    }
+    try {
+      const response = await fetch("/api/shared-groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: sharedGroupName.trim(),
+        }),
+      });
+      const payload = (await response.json()) as Envelope<SharedGroup>;
+      if (!response.ok || payload.code !== "OK" || !payload.data) {
+        throw new Error(payload.error?.message || "Failed to create group");
+      }
+      setSharedGroupName("");
+      setSelectedSharedGroupId(payload.data.id);
+      setSharedExpenseForm((prev) => ({ ...prev, groupId: payload.data!.id }));
+      void loadDashboardData();
+    } catch (err) {
+      setSharedGroupError((err as Error).message || "Create group failed");
+    }
+  }
+
+  async function joinSharedGroup() {
+    setSharedGroupError(null);
+    if (!sharedGroupJoinCode.trim()) {
+      setSharedGroupError("Invite code is required");
+      return;
+    }
+    try {
+      const response = await fetch("/api/shared-groups/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inviteCode: sharedGroupJoinCode.trim(),
+        }),
+      });
+      const payload = (await response.json()) as Envelope<{ groupId: string }>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to join group");
+      }
+      setSharedGroupJoinCode("");
+      void loadDashboardData();
+    } catch (err) {
+      setSharedGroupError((err as Error).message || "Join group failed");
+    }
+  }
+
+  async function connectExistingSharedExpenses() {
+    setSharedGroupError(null);
+    try {
+      const response = await fetch("/api/shared-expenses/connect-existing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          groupId: selectedSharedGroupId || undefined,
+        }),
+      });
+      const payload = (await response.json()) as Envelope<{ updated: number }>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to connect existing expenses");
+      }
+      void loadDashboardData();
+    } catch (err) {
+      setSharedGroupError((err as Error).message || "Connect existing expenses failed");
+    }
+  }
+
+  async function createSettlementFromSuggestion(suggestion: SharedSettlementSuggestion) {
+    if (!selectedSharedGroupId) return;
+    try {
+      const response = await fetch(`/api/shared-groups/${selectedSharedGroupId}/settlements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromMemberId: suggestion.fromMemberId,
+          toMemberId: suggestion.toMemberId,
+          amount: suggestion.amount,
+          status: "PROPOSED",
+        }),
+      });
+      const payload = (await response.json()) as Envelope<SharedSettlementRecord>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to create settlement");
+      }
+      void loadDashboardData();
+    } catch (err) {
+      setSharedGroupError((err as Error).message || "Create settlement failed");
+    }
+  }
+
+  async function markSettlementStatus(
+    settlement: SharedSettlementRecord,
+    status: "SETTLED" | "CANCELED" | "PROPOSED"
+  ) {
+    try {
+      const response = await fetch(`/api/shared-settlements/${settlement.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const payload = (await response.json()) as Envelope<SharedSettlementRecord>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to update settlement");
+      }
+      void loadDashboardData();
+    } catch (err) {
+      setSharedGroupError((err as Error).message || "Update settlement failed");
+    }
+  }
+
   function parseParticipantNames(raw: string) {
     return raw
       .split(/[\n,]/g)
@@ -1037,6 +1251,10 @@ export default function TransactionsPage() {
     const totalAmount = Number(sharedExpenseForm.totalAmount);
     const participants = parseParticipantNames(sharedExpenseForm.participantsText);
 
+    if (!sharedExpenseForm.groupId) {
+      setSharedExpenseFormError("Select a shared group");
+      return;
+    }
     if (!sharedExpenseForm.title.trim()) {
       setSharedExpenseFormError("Shared expense title is required");
       return;
@@ -1055,6 +1273,7 @@ export default function TransactionsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          groupId: sharedExpenseForm.groupId,
           title: sharedExpenseForm.title.trim(),
           totalAmount,
           date: sharedExpenseForm.date,
@@ -1068,6 +1287,7 @@ export default function TransactionsPage() {
         throw new Error(payload.error?.message || "Failed to create shared expense");
       }
       setSharedExpenseForm({
+        groupId: sharedExpenseForm.groupId,
         title: "",
         totalAmount: "",
         date: todayIsoDate(),
@@ -1507,7 +1727,65 @@ export default function TransactionsPage() {
             </span>
           </div>
 
+          <div className="mt-3 grid gap-2 md:grid-cols-4">
+            <select
+              className={selectClass}
+              value={selectedSharedGroupId}
+              onChange={(e) => {
+                setSelectedSharedGroupId(e.target.value);
+                setSharedExpenseForm((prev) => ({ ...prev, groupId: e.target.value }));
+              }}
+            >
+              <option value="">Select group</option>
+              {sharedGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name} ({group.members.length})
+                </option>
+              ))}
+            </select>
+            <input
+              className={inputClass}
+              value={sharedGroupName}
+              onChange={(e) => setSharedGroupName(e.target.value)}
+              placeholder="New group name"
+            />
+            <button onClick={createSharedGroup} className={primaryButtonClass}>
+              Create Group
+            </button>
+            <button onClick={connectExistingSharedExpenses} className={subtleButtonClass}>
+              Connect Existing
+            </button>
+          </div>
+          <div className="mt-2 grid gap-2 md:grid-cols-3">
+            <input
+              className={inputClass}
+              value={sharedGroupJoinCode}
+              onChange={(e) => setSharedGroupJoinCode(e.target.value)}
+              placeholder="Join with invite code"
+            />
+            <button onClick={joinSharedGroup} className={subtleButtonClass}>
+              Join Group
+            </button>
+            <p className="text-xs text-slate-500">
+              Selected group invite code:{" "}
+              {sharedGroups.find((group) => group.id === selectedSharedGroupId)?.inviteCode || "-"}
+            </p>
+          </div>
+          {sharedGroupError && <p className="mt-2 text-sm text-rose-700">{sharedGroupError}</p>}
+
           <div className="mt-3 grid gap-2 lg:grid-cols-3">
+            <select
+              className={selectClass}
+              value={sharedExpenseForm.groupId}
+              onChange={(e) => setSharedExpenseForm((prev) => ({ ...prev, groupId: e.target.value }))}
+            >
+              <option value="">Expense group</option>
+              {sharedGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
             <input
               className={inputClass}
               value={sharedExpenseForm.title}
@@ -1574,6 +1852,9 @@ export default function TransactionsPage() {
                     {new Date(expense.date).toLocaleDateString()} | {expense.splitMethod} | {settled}/
                     {expense.participants.length} settled
                   </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Group: {expense.group?.name || "Ungrouped"}
+                  </p>
                   {expense.note && <p className="mt-1 text-xs text-slate-500">{expense.note}</p>}
                   <div className="mt-2 flex flex-wrap gap-2">
                     {expense.participants.map((participant) => (
@@ -1593,6 +1874,65 @@ export default function TransactionsPage() {
                 </div>
               );
             })}
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div className="rounded-md border border-slate-200 p-3">
+              <h4 className="text-sm font-semibold text-slate-800">Settlement Suggestions</h4>
+              <div className="mt-2 space-y-2">
+                {(sharedSettlements?.suggestions || []).length === 0 && (
+                  <p className="text-xs text-slate-500">No settlement suggestions yet.</p>
+                )}
+                {(sharedSettlements?.suggestions || []).map((suggestion, idx) => (
+                  <div key={`${suggestion.fromMemberId}-${suggestion.toMemberId}-${idx}`} className="flex items-center justify-between gap-2 rounded-md border border-slate-200 p-2">
+                    <p className="text-xs text-slate-700">
+                      {suggestion.fromDisplayName} pays {suggestion.toDisplayName} {currency(suggestion.amount)}
+                    </p>
+                    <button
+                      onClick={() => void createSettlementFromSuggestion(suggestion)}
+                      className={subtleButtonClass}
+                    >
+                      Create
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-md border border-slate-200 p-3">
+              <h4 className="text-sm font-semibold text-slate-800">Settlement Records</h4>
+              <div className="mt-2 space-y-2">
+                {(sharedSettlements?.settlements || []).length === 0 && (
+                  <p className="text-xs text-slate-500">No settlement records yet.</p>
+                )}
+                {(sharedSettlements?.settlements || []).map((record) => (
+                  <div key={record.id} className="rounded-md border border-slate-200 p-2">
+                    <p className="text-xs text-slate-700">
+                      {record.fromMember.displayName} {"->"} {record.toMember.displayName} {currency(record.amount)}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{record.status}</span>
+                      {record.status !== "SETTLED" && (
+                        <button
+                          onClick={() => void markSettlementStatus(record, "SETTLED")}
+                          className={subtleButtonClass}
+                        >
+                          Mark Settled
+                        </button>
+                      )}
+                      {record.status !== "CANCELED" && (
+                        <button
+                          onClick={() => void markSettlementStatus(record, "CANCELED")}
+                          className={dangerButtonClass}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 

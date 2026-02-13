@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { type AuthenticatedRequest, withAuth } from "@/lib/api/with-auth";
 import { sendError, sendOk } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
+import { isGroupMember } from "@/lib/shared-groups";
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
@@ -20,6 +21,7 @@ const participantSchema = z.object({
 const createSchema = z.object({
   title: z.string().trim().min(1).max(180),
   totalAmount: z.coerce.number().positive(),
+  groupId: z.string().min(1).optional(),
   date: z.coerce.date().optional(),
   note: z.string().trim().max(600).optional(),
   splitMethod: z.nativeEnum(SharedSplitMethod).optional(),
@@ -79,13 +81,23 @@ export async function sharedExpensesHandler(req: AuthenticatedRequest, res: Next
   try {
     if (req.method === "GET") {
       const { page, pageSize, skip } = parsePagination(req);
-      const where = { userId };
+      const groupId = typeof req.query.groupId === "string" ? req.query.groupId : undefined;
+      if (groupId) {
+        const membership = await isGroupMember(groupId, userId);
+        if (!membership) {
+          return sendError(res, 404, "Shared group not found", "NOT_FOUND");
+        }
+      }
+      const where = { userId, ...(groupId ? { groupId } : {}) };
 
       const [total, items] = await Promise.all([
         prisma.sharedExpense.count({ where }),
         prisma.sharedExpense.findMany({
           where,
           include: {
+            group: {
+              select: { id: true, name: true, inviteCode: true },
+            },
             participants: {
               orderBy: { createdAt: "asc" },
             },
@@ -134,6 +146,13 @@ export async function sharedExpensesHandler(req: AuthenticatedRequest, res: Next
         return sendError(res, 400, "Invalid payload", "VALIDATION_ERROR", parsed.error.flatten());
       }
 
+      if (parsed.data.groupId) {
+        const membership = await isGroupMember(parsed.data.groupId, userId);
+        if (!membership) {
+          return sendError(res, 404, "Shared group not found", "NOT_FOUND");
+        }
+      }
+
       const splitMethod = parsed.data.splitMethod ?? SharedSplitMethod.EQUAL;
       let normalizedParticipants: ReturnType<typeof normalizeParticipants>;
       try {
@@ -150,11 +169,13 @@ export async function sharedExpensesHandler(req: AuthenticatedRequest, res: Next
           note: parsed.data.note ?? null,
           splitMethod,
           userId,
+          ...(parsed.data.groupId ? { groupId: parsed.data.groupId } : {}),
           participants: {
             create: normalizedParticipants,
           },
         },
         include: {
+          group: { select: { id: true, name: true, inviteCode: true } },
           participants: { orderBy: { createdAt: "asc" } },
         },
       });

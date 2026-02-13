@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { type AuthenticatedRequest, withAuth } from "@/lib/api/with-auth";
 import { sendError, sendOk } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
+import { isGroupMember } from "@/lib/shared-groups";
 
 function parseId(req: AuthenticatedRequest): string | null {
   const id = req.query.id;
@@ -21,6 +22,7 @@ const participantSchema = z.object({
 const updateSchema = z.object({
   title: z.string().trim().min(1).max(180).optional(),
   totalAmount: z.coerce.number().positive().optional(),
+  groupId: z.string().min(1).nullable().optional(),
   date: z.coerce.date().optional(),
   note: z.string().trim().max(600).nullable().optional(),
   splitMethod: z.nativeEnum(SharedSplitMethod).optional(),
@@ -67,7 +69,12 @@ function normalizeParticipants(
 async function findOwnedExpense(id: string, userId: string) {
   return prisma.sharedExpense.findFirst({
     where: { id, userId },
-    include: { participants: true },
+    include: {
+      group: {
+        select: { id: true, name: true, inviteCode: true },
+      },
+      participants: true,
+    },
   });
 }
 
@@ -115,6 +122,15 @@ export async function sharedExpenseByIdHandler(req: AuthenticatedRequest, res: N
 
       const nextTotalAmount = parsed.data.totalAmount ?? Number(existing.totalAmount);
       const nextSplitMethod = parsed.data.splitMethod ?? existing.splitMethod;
+      const nextGroupId =
+        parsed.data.groupId === undefined ? existing.groupId : parsed.data.groupId;
+
+      if (nextGroupId) {
+        const membership = await isGroupMember(nextGroupId, req.auth.userId);
+        if (!membership) {
+          return sendError(res, 404, "Shared group not found", "NOT_FOUND");
+        }
+      }
       let normalizedParticipants = existing.participants.map((participant) => ({
         participantName: participant.participantName,
         shareAmount: Number(participant.shareAmount),
@@ -144,6 +160,7 @@ export async function sharedExpenseByIdHandler(req: AuthenticatedRequest, res: N
             ...(parsed.data.totalAmount !== undefined ? { totalAmount: parsed.data.totalAmount } : {}),
             ...(parsed.data.date !== undefined ? { date: parsed.data.date } : {}),
             ...(parsed.data.note !== undefined ? { note: parsed.data.note } : {}),
+            ...(parsed.data.groupId !== undefined ? { groupId: parsed.data.groupId } : {}),
             ...(parsed.data.splitMethod !== undefined ? { splitMethod: parsed.data.splitMethod } : {}),
           },
         });
@@ -161,7 +178,10 @@ export async function sharedExpenseByIdHandler(req: AuthenticatedRequest, res: N
 
         const withParticipants = await tx.sharedExpense.findUnique({
           where: { id: base.id },
-          include: { participants: { orderBy: { createdAt: "asc" } } },
+          include: {
+            group: { select: { id: true, name: true, inviteCode: true } },
+            participants: { orderBy: { createdAt: "asc" } },
+          },
         });
         return withParticipants!;
       });
