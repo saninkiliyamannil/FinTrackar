@@ -20,6 +20,7 @@ model User {
   transactions Transaction[]
   categories   Category[]
   budgets      Budget[]
+  goals        Goal[]
 
   @@index([createdAt])
 }
@@ -101,6 +102,23 @@ model Budget {
   @@unique([userId, categoryId, month, year])
 }
 
+model Goal {
+  id            String     @id @default(cuid())
+  name          String
+  targetAmount  Decimal    @db.Decimal(14, 2)
+  currentAmount Decimal    @default(0) @db.Decimal(14, 2)
+  targetDate    DateTime?
+  note          String?
+  status        GoalStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, targetDate])
+}
+
 model Tag {
   id   String @id @default(cuid())
   name String
@@ -133,4 +151,10 @@ enum AccountType {
 enum CategoryType {
   INCOME
   EXPENSE
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
 }

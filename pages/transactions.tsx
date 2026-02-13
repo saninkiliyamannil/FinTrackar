@@ -97,6 +97,70 @@ type CategoryForm = {
   icon: string;
 };
 
+type BudgetItem = {
+  id: string;
+  amount: number;
+  month: number;
+  year: number;
+  categoryId: string;
+  category: {
+    id: string;
+    name: string;
+    color: string | null;
+    type: "INCOME" | "EXPENSE";
+  };
+  spent: number;
+  remaining: number;
+  usageRatio: number;
+};
+
+type BudgetsResponse = {
+  month: number;
+  year: number;
+  items: BudgetItem[];
+  summary: {
+    totalBudget: number;
+    totalSpent: number;
+    totalRemaining: number;
+  };
+};
+
+type GoalStatus = "ACTIVE" | "COMPLETED" | "ARCHIVED";
+
+type GoalItem = {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  targetDate: string | null;
+  note: string | null;
+  status: GoalStatus;
+  progressRatio: number;
+};
+
+type GoalsResponse = {
+  items: GoalItem[];
+  summary: {
+    totalTarget: number;
+    totalCurrent: number;
+    completed: number;
+    total: number;
+  };
+};
+
+type BudgetForm = {
+  amount: string;
+  categoryId: string;
+};
+
+type GoalForm = {
+  name: string;
+  targetAmount: string;
+  currentAmount: string;
+  targetDate: string;
+  note: string;
+};
+
 function currency(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -278,6 +342,22 @@ export default function TransactionsPage() {
   const [editingCategoryType, setEditingCategoryType] =
     useState<"INCOME" | "EXPENSE">("EXPENSE");
 
+  const [budgets, setBudgets] = useState<BudgetsResponse | null>(null);
+  const [goals, setGoals] = useState<GoalsResponse | null>(null);
+  const [budgetForm, setBudgetForm] = useState<BudgetForm>({
+    amount: "",
+    categoryId: "",
+  });
+  const [budgetFormError, setBudgetFormError] = useState<string | null>(null);
+  const [goalForm, setGoalForm] = useState<GoalForm>({
+    name: "",
+    targetAmount: "",
+    currentAmount: "0",
+    targetDate: "",
+    note: "",
+  });
+  const [goalFormError, setGoalFormError] = useState<string | null>(null);
+
   const filteredCategories = useMemo(
     () => categories.filter((cat) => cat.type.toUpperCase() === createForm.type),
     [categories, createForm.type]
@@ -286,6 +366,11 @@ export default function TransactionsPage() {
   const filteredEditCategories = useMemo(
     () => categories.filter((cat) => cat.type.toUpperCase() === editForm.type),
     [categories, editForm.type]
+  );
+
+  const expenseCategories = useMemo(
+    () => categories.filter((cat) => cat.type.toUpperCase() === "EXPENSE"),
+    [categories]
   );
 
   const loadDashboardData = useCallback(async () => {
@@ -301,7 +386,13 @@ export default function TransactionsPage() {
     });
 
     try {
-      const [txRes, analyticsRes, breakdownRes, accountsRes, categoriesRes] = await Promise.all([
+      const now = new Date();
+      const budgetQuery = new URLSearchParams({
+        month: String(now.getUTCMonth() + 1),
+        year: String(now.getUTCFullYear()),
+      });
+
+      const [txRes, analyticsRes, breakdownRes, accountsRes, categoriesRes, budgetsRes, goalsRes] = await Promise.all([
         fetch(`/api/transactions?${txQuery.toString()}`).then((res) =>
           res.json() as Promise<Envelope<TransactionsResponse>>
         ),
@@ -313,6 +404,10 @@ export default function TransactionsPage() {
         ),
         fetch("/api/accounts").then((res) => res.json() as Promise<Envelope<Account[]>>),
         fetch("/api/categories").then((res) => res.json() as Promise<Envelope<Category[]>>),
+        fetch(`/api/budgets?${budgetQuery.toString()}`).then((res) =>
+          res.json() as Promise<Envelope<BudgetsResponse>>
+        ),
+        fetch("/api/goals").then((res) => res.json() as Promise<Envelope<GoalsResponse>>),
       ]);
 
       if (txRes.code !== "OK" || !txRes.data) throw new Error(txRes.error?.message || "Failed to load transactions");
@@ -326,27 +421,43 @@ export default function TransactionsPage() {
       if (categoriesRes.code !== "OK" || !categoriesRes.data) {
         throw new Error(categoriesRes.error?.message || "Failed categories");
       }
+      if (budgetsRes.code !== "OK" || !budgetsRes.data) {
+        throw new Error(budgetsRes.error?.message || "Failed budgets");
+      }
+      if (goalsRes.code !== "OK" || !goalsRes.data) {
+        throw new Error(goalsRes.error?.message || "Failed goals");
+      }
 
       const txData = txRes.data;
       const analyticsData = analyticsRes.data;
       const breakdownData = breakdownRes.data;
       const accountsData = accountsRes.data;
       const categoriesData = categoriesRes.data;
+      const budgetsData = budgetsRes.data;
+      const goalsData = goalsRes.data;
 
       setTransactions(txData.items);
       setAnalytics(analyticsData);
       setBreakdown(breakdownData);
       setAccounts(accountsData);
       setCategories(categoriesData);
+      setBudgets(budgetsData);
+      setGoals(goalsData);
       if (!createForm.bankAccountId && accountsData.length > 0) {
         setCreateForm((prev) => ({ ...prev, bankAccountId: accountsData[0].id }));
+      }
+      if (!budgetForm.categoryId) {
+        const firstExpenseCategory = categoriesData.find((cat) => cat.type.toUpperCase() === "EXPENSE");
+        if (firstExpenseCategory) {
+          setBudgetForm((prev) => ({ ...prev, categoryId: firstExpenseCategory.id }));
+        }
       }
     } catch (err) {
       setError((err as Error).message || "Failed to load dashboard data.");
     } finally {
       setLoading(false);
     }
-  }, [breakdownType, createForm.bankAccountId, months, page, status, typeFilter]);
+  }, [breakdownType, budgetForm.categoryId, createForm.bankAccountId, months, page, status, typeFilter]);
 
   useEffect(() => {
     void loadDashboardData();
@@ -361,6 +472,25 @@ export default function TransactionsPage() {
       { label: "Net", value: currency(summary.net), color: summary.net >= 0 ? "#1d4ed8" : "#b91c1c" },
     ];
   }, [analytics]);
+
+  const budgetPieSlices = useMemo(
+    () =>
+      (budgets?.items || []).map((item) => ({
+        label: item.category.name,
+        value: Math.max(0, item.spent),
+        color: item.category.color,
+      })),
+    [budgets]
+  );
+
+  const goalsPieSlices = useMemo(() => {
+    const items = goals?.items || [];
+    return items.map((item) => ({
+      label: item.name,
+      value: Math.max(0, item.currentAmount),
+      color: item.status === "COMPLETED" ? "#16a34a" : item.status === "ARCHIVED" ? "#64748b" : "#0284c7",
+    }));
+  }, [goals]);
 
   async function createTransaction() {
     const errors = validateForm(createForm);
@@ -701,6 +831,131 @@ export default function TransactionsPage() {
     }
   }
 
+  async function createBudget() {
+    setBudgetFormError(null);
+    const amount = Number(budgetForm.amount);
+    if (!budgetForm.categoryId) {
+      setBudgetFormError("Expense category is required");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setBudgetFormError("Budget amount must be greater than 0");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/budgets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount,
+          categoryId: budgetForm.categoryId,
+        }),
+      });
+      const payload = (await response.json()) as Envelope<BudgetItem>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to create budget");
+      }
+      setBudgetForm((prev) => ({ ...prev, amount: "" }));
+      void loadDashboardData();
+    } catch (err) {
+      setBudgetFormError((err as Error).message || "Create budget failed");
+    }
+  }
+
+  async function deleteBudget(id: string) {
+    setBudgetFormError(null);
+    try {
+      const response = await fetch(`/api/budgets/${id}`, { method: "DELETE" });
+      const payload = (await response.json()) as Envelope<{ ok: boolean }>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to delete budget");
+      }
+      void loadDashboardData();
+    } catch (err) {
+      setBudgetFormError((err as Error).message || "Delete budget failed");
+    }
+  }
+
+  async function createGoal() {
+    setGoalFormError(null);
+    const targetAmount = Number(goalForm.targetAmount);
+    const currentAmount = Number(goalForm.currentAmount || "0");
+
+    if (!goalForm.name.trim()) {
+      setGoalFormError("Goal name is required");
+      return;
+    }
+    if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
+      setGoalFormError("Target amount must be greater than 0");
+      return;
+    }
+    if (!Number.isFinite(currentAmount) || currentAmount < 0) {
+      setGoalFormError("Current amount must be 0 or more");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/goals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: goalForm.name.trim(),
+          targetAmount,
+          currentAmount,
+          targetDate: goalForm.targetDate || undefined,
+          note: goalForm.note || undefined,
+        }),
+      });
+      const payload = (await response.json()) as Envelope<GoalItem>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to create goal");
+      }
+      setGoalForm({
+        name: "",
+        targetAmount: "",
+        currentAmount: "0",
+        targetDate: "",
+        note: "",
+      });
+      void loadDashboardData();
+    } catch (err) {
+      setGoalFormError((err as Error).message || "Create goal failed");
+    }
+  }
+
+  async function updateGoalProgress(goal: GoalItem, nextCurrentAmount: number) {
+    if (!Number.isFinite(nextCurrentAmount) || nextCurrentAmount < 0) return;
+    try {
+      const response = await fetch(`/api/goals/${goal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentAmount: nextCurrentAmount }),
+      });
+      const payload = (await response.json()) as Envelope<GoalItem>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to update goal");
+      }
+      void loadDashboardData();
+    } catch (err) {
+      setGoalFormError((err as Error).message || "Update goal failed");
+    }
+  }
+
+  async function deleteGoal(id: string) {
+    setGoalFormError(null);
+    try {
+      const response = await fetch(`/api/goals/${id}`, { method: "DELETE" });
+      const payload = (await response.json()) as Envelope<{ ok: boolean }>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to delete goal");
+      }
+      void loadDashboardData();
+    } catch (err) {
+      setGoalFormError((err as Error).message || "Delete goal failed");
+    }
+  }
+
   function exportCsv() {
     const query = new URLSearchParams({
       ...(typeFilter !== "ALL" ? { type: typeFilter } : {}),
@@ -922,6 +1177,146 @@ export default function TransactionsPage() {
               </li>
             ))}
           </ul>
+          </section>
+        </div>
+
+        <div className="mb-6 grid gap-4 xl:grid-cols-2">
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-base font-semibold text-slate-900">Budgets (Current Month)</h3>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <select
+                className={selectClass}
+                value={budgetForm.categoryId}
+                onChange={(e) => setBudgetForm((prev) => ({ ...prev, categoryId: e.target.value }))}
+              >
+                <option value="">Select Expense Category</option>
+                {expenseCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                className={inputClass}
+                value={budgetForm.amount}
+                onChange={(e) => setBudgetForm((prev) => ({ ...prev, amount: e.target.value }))}
+                placeholder="Budget amount"
+              />
+              <button onClick={createBudget} className={primaryButtonClass}>
+                Add Budget
+              </button>
+            </div>
+            {budgetFormError && <p className="mt-2 text-sm text-rose-700">{budgetFormError}</p>}
+
+            <div className="mt-4 rounded-md border border-slate-200 p-3">
+              <PieChart slices={budgetPieSlices} />
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {(budgets?.items || []).length === 0 && <p className="text-sm text-slate-600">No budgets yet for this month.</p>}
+              {(budgets?.items || []).map((item) => (
+                <div key={item.id} className="rounded-md border border-slate-200 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-slate-900">{item.category.name}</p>
+                    <button onClick={() => void deleteBudget(item.id)} className={dangerButtonClass}>
+                      Delete
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Planned {currency(item.amount)} | Spent {currency(item.spent)} | Remaining {currency(item.remaining)}
+                  </p>
+                  <div className="mt-2 h-2 rounded-full bg-slate-100">
+                    <div
+                      className={`h-2 rounded-full ${item.usageRatio > 1 ? "bg-rose-500" : "bg-emerald-500"}`}
+                      style={{ width: `${Math.min(100, Math.max(4, item.usageRatio * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-base font-semibold text-slate-900">Goals</h3>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <input
+                className={inputClass}
+                value={goalForm.name}
+                onChange={(e) => setGoalForm((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="Goal name"
+              />
+              <input
+                className={inputClass}
+                value={goalForm.targetAmount}
+                onChange={(e) => setGoalForm((prev) => ({ ...prev, targetAmount: e.target.value }))}
+                placeholder="Target amount"
+              />
+              <input
+                className={inputClass}
+                value={goalForm.currentAmount}
+                onChange={(e) => setGoalForm((prev) => ({ ...prev, currentAmount: e.target.value }))}
+                placeholder="Current amount"
+              />
+              <input
+                type="date"
+                className={inputClass}
+                value={goalForm.targetDate}
+                onChange={(e) => setGoalForm((prev) => ({ ...prev, targetDate: e.target.value }))}
+              />
+              <input
+                className={inputClass}
+                value={goalForm.note}
+                onChange={(e) => setGoalForm((prev) => ({ ...prev, note: e.target.value }))}
+                placeholder="Optional note"
+              />
+              <button onClick={createGoal} className={primaryButtonClass}>
+                Add Goal
+              </button>
+            </div>
+            {goalFormError && <p className="mt-2 text-sm text-rose-700">{goalFormError}</p>}
+
+            <div className="mt-4 rounded-md border border-slate-200 p-3">
+              <PieChart slices={goalsPieSlices} />
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {(goals?.items || []).length === 0 && <p className="text-sm text-slate-600">No goals yet.</p>}
+              {(goals?.items || []).map((goal) => (
+                <div key={goal.id} className="rounded-md border border-slate-200 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-slate-900">{goal.name}</p>
+                    <button onClick={() => void deleteGoal(goal.id)} className={dangerButtonClass}>
+                      Delete
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {currency(goal.currentAmount)} / {currency(goal.targetAmount)}{" "}
+                    {goal.targetDate ? `| Target ${new Date(goal.targetDate).toLocaleDateString()}` : ""}
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => void updateGoalProgress(goal, Number((goal.currentAmount + 50).toFixed(2)))}
+                      className={subtleButtonClass}
+                    >
+                      +50
+                    </button>
+                    <button
+                      onClick={() => void updateGoalProgress(goal, Number((goal.currentAmount + 100).toFixed(2)))}
+                      className={subtleButtonClass}
+                    >
+                      +100
+                    </button>
+                    <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{goal.status}</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-slate-100">
+                    <div
+                      className="h-2 rounded-full bg-sky-500"
+                      style={{ width: `${Math.min(100, Math.max(4, goal.progressRatio * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
         </div>
 
@@ -1168,6 +1563,79 @@ export default function TransactionsPage() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+type PieSlice = { label: string; value: number; color?: string | null };
+
+function PieChart({ slices, size = 220 }: { slices: PieSlice[]; size?: number }) {
+  const total = slices.reduce((sum, slice) => sum + Math.max(0, slice.value), 0);
+  const radius = size / 2 - 12;
+  const center = size / 2;
+  let cursor = -Math.PI / 2;
+
+  const palette = ["#0f766e", "#16a34a", "#0284c7", "#6366f1", "#f97316", "#dc2626", "#8b5cf6", "#0891b2"];
+  const pathForSlice = (start: number, end: number) => {
+    const x1 = center + radius * Math.cos(start);
+    const y1 = center + radius * Math.sin(start);
+    const x2 = center + radius * Math.cos(end);
+    const y2 = center + radius * Math.sin(end);
+    const largeArcFlag = end - start > Math.PI ? 1 : 0;
+    return `M ${center} ${center} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+  };
+
+  return (
+    <div className="grid gap-3 md:grid-cols-[auto,1fr] md:items-center">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Pie chart">
+        {total === 0 ? (
+          <circle cx={center} cy={center} r={radius} fill="#e2e8f0" />
+        ) : (
+          slices.map((slice, idx) => {
+            const value = Math.max(0, slice.value);
+            const angle = (value / total) * Math.PI * 2;
+            const start = cursor;
+            const end = cursor + angle;
+            cursor = end;
+            return (
+              <path
+                key={`${slice.label}-${idx}`}
+                d={pathForSlice(start, end)}
+                fill={slice.color || palette[idx % palette.length]}
+                stroke="#fff"
+                strokeWidth={1}
+              />
+            );
+          })
+        )}
+        <circle cx={center} cy={center} r={radius * 0.45} fill="white" />
+        <text x={center} y={center - 4} textAnchor="middle" fontSize={12} fill="#64748b">
+          Total
+        </text>
+        <text x={center} y={center + 14} textAnchor="middle" fontSize={14} fontWeight={600} fill="#0f172a">
+          {currency(total)}
+        </text>
+      </svg>
+      <ul className="space-y-1 text-sm text-slate-600">
+        {slices.length === 0 && <li>No data available.</li>}
+        {slices.map((slice, idx) => {
+          const share = total > 0 ? Math.round((slice.value / total) * 100) : 0;
+          return (
+            <li key={`${slice.label}-${idx}`} className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: slice.color || palette[idx % palette.length] }}
+                />
+                {slice.label}
+              </span>
+              <span>
+                {currency(slice.value)} ({share}%)
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
