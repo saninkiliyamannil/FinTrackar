@@ -86,4 +86,20 @@ describe("Default export auth wrapping", () => {
       code: "ERROR",
     });
   });
+
+  it("analytics/trends default export returns 401 when auth fails", async () => {
+    getSessionFromRequestMock.mockResolvedValueOnce(null);
+    const module = await import("../../pages/api/analytics/trends");
+    const route = module.default;
+
+    const { req, res } = createMocks({ method: "GET" });
+    await route(req as any, res as unknown as NextApiResponse);
+
+    expect(res._getStatusCode()).toBe(401);
+    expect(res._getJSONData()).toEqual({
+      data: null,
+      error: { code: "UNAUTHORIZED", message: "Unauthorized" },
+      code: "ERROR",
+    });
+  });
 });

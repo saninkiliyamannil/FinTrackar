@@ -97,6 +97,32 @@ type CategoryForm = {
   icon: string;
 };
 
+type TrendPeriod = "daily" | "weekly" | "monthly" | "yearly";
+
+type TrendPoint = {
+  key: string;
+  label: string;
+  start: string;
+  income: number;
+  expense: number;
+  savings: number;
+};
+
+type TrendsResponse = {
+  period: TrendPeriod;
+  range: number;
+  from: string;
+  to: string;
+  points: TrendPoint[];
+  summary: {
+    totalIncome: number;
+    totalExpense: number;
+    totalSavings: number;
+    averageIncome: number;
+    averageExpense: number;
+  };
+};
+
 type BudgetItem = {
   id: string;
   amount: number;
@@ -377,12 +403,15 @@ export default function TransactionsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [analytics, setAnalytics] = useState<MonthlyAnalyticsResponse | null>(null);
+  const [trends, setTrends] = useState<TrendsResponse | null>(null);
   const [breakdown, setBreakdown] = useState<CategoryBreakdownResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mutationBusy, setMutationBusy] = useState(false);
 
   const [months, setMonths] = useState(6);
+  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>("monthly");
+  const [trendRange, setTrendRange] = useState(12);
   const [typeFilter, setTypeFilter] = useState<"ALL" | "INCOME" | "EXPENSE">("ALL");
   const [breakdownType, setBreakdownType] = useState<"INCOME" | "EXPENSE">("EXPENSE");
   const [page, setPage] = useState(1);
@@ -499,13 +528,16 @@ export default function TransactionsPage() {
         year: String(now.getUTCFullYear()),
       });
 
-      const [txRes, analyticsRes, breakdownRes, accountsRes, categoriesRes, budgetsRes, goalsRes, sharedGroupsRes] =
+      const [txRes, analyticsRes, trendsRes, breakdownRes, accountsRes, categoriesRes, budgetsRes, goalsRes, sharedGroupsRes] =
         await Promise.all([
         fetch(`/api/transactions?${txQuery.toString()}`).then((res) =>
           res.json() as Promise<Envelope<TransactionsResponse>>
         ),
         fetch(`/api/analytics/monthly?months=${months}`).then((res) =>
           res.json() as Promise<Envelope<MonthlyAnalyticsResponse>>
+        ),
+        fetch(`/api/analytics/trends?period=${trendPeriod}&range=${trendRange}`).then((res) =>
+          res.json() as Promise<Envelope<TrendsResponse>>
         ),
         fetch(`/api/analytics/category-breakdown?months=${months}&type=${breakdownType}`).then((res) =>
           res.json() as Promise<Envelope<CategoryBreakdownResponse>>
@@ -522,6 +554,9 @@ export default function TransactionsPage() {
       if (txRes.code !== "OK" || !txRes.data) throw new Error(txRes.error?.message || "Failed to load transactions");
       if (analyticsRes.code !== "OK" || !analyticsRes.data) {
         throw new Error(analyticsRes.error?.message || "Failed to load analytics");
+      }
+      if (trendsRes.code !== "OK" || !trendsRes.data) {
+        throw new Error(trendsRes.error?.message || "Failed to load trends");
       }
       if (breakdownRes.code !== "OK" || !breakdownRes.data) {
         throw new Error(breakdownRes.error?.message || "Failed to load category breakdown");
@@ -542,6 +577,7 @@ export default function TransactionsPage() {
 
       const txData = txRes.data;
       const analyticsData = analyticsRes.data;
+      const trendsData = trendsRes.data;
       const breakdownData = breakdownRes.data;
       const accountsData = accountsRes.data;
       const categoriesData = categoriesRes.data;
@@ -578,6 +614,7 @@ export default function TransactionsPage() {
 
       setTransactions(txData.items);
       setAnalytics(analyticsData);
+      setTrends(trendsData);
       setBreakdown(breakdownData);
       setAccounts(accountsData);
       setCategories(categoriesData);
@@ -615,6 +652,8 @@ export default function TransactionsPage() {
     selectedSharedGroupId,
     sharedExpenseForm.groupId,
     status,
+    trendPeriod,
+    trendRange,
     typeFilter,
   ]);
 
@@ -659,6 +698,21 @@ export default function TransactionsPage() {
       color: item.splitMethod === "CUSTOM" ? "#0ea5e9" : "#8b5cf6",
     }));
   }, [sharedExpenses]);
+
+  const savingsPieSlices = useMemo(() => {
+    if (!trends) return [];
+    const savings = trends.summary.totalSavings;
+    if (savings >= 0) {
+      return [
+        { label: "Expenses", value: trends.summary.totalExpense, color: "#dc2626" },
+        { label: "Savings", value: savings, color: "#16a34a" },
+      ];
+    }
+    return [
+      { label: "Expenses", value: trends.summary.totalExpense, color: "#dc2626" },
+      { label: "Deficit", value: Math.abs(savings), color: "#f59e0b" },
+    ];
+  }, [trends]);
 
   async function createTransaction() {
     const errors = validateForm(createForm);
@@ -1404,7 +1458,7 @@ export default function TransactionsPage() {
           </button>
         </div>
 
-        <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-3">
+        <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-5">
           <label className="text-sm font-medium text-slate-700">
             Months
             <select aria-label="Months" value={months} onChange={(e) => setMonths(Number(e.target.value))} className={`${selectClass} mt-1`}>
@@ -1443,6 +1497,48 @@ export default function TransactionsPage() {
             <option value="INCOME">Income</option>
           </select>
         </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Trend Period
+            <select
+              aria-label="Trend Period"
+              value={trendPeriod}
+              onChange={(e) => {
+                const next = e.target.value as TrendPeriod;
+                setTrendPeriod(next);
+                setTrendRange(next === "daily" ? 14 : next === "weekly" ? 12 : next === "monthly" ? 12 : 5);
+              }}
+              className={`${selectClass} mt-1`}
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Trend Range
+            <select
+              aria-label="Trend Range"
+              value={trendRange}
+              onChange={(e) => setTrendRange(Number(e.target.value))}
+              className={`${selectClass} mt-1`}
+            >
+              {(trendPeriod === "daily"
+                ? [7, 14, 30, 60, 90]
+                : trendPeriod === "weekly"
+                  ? [4, 8, 12, 26, 52]
+                  : trendPeriod === "monthly"
+                    ? [3, 6, 12, 24, 36]
+                    : [3, 5, 8, 10, 12]
+              ).map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="mb-6 grid gap-4 lg:grid-cols-2">
@@ -2028,6 +2124,27 @@ export default function TransactionsPage() {
             ))}
           </div>
 
+            {trends && (
+              <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h3 className="text-base font-semibold text-slate-900">
+                  Savings vs Expenses ({trendPeriod}, last {trends.range})
+                </h3>
+                <div className="mt-3 grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-md border border-slate-200 p-3">
+                    <TrendBarChart points={trends.points} />
+                  </div>
+                  <div className="rounded-md border border-slate-200 p-3">
+                    <PieChart slices={savingsPieSlices} />
+                    <div className="mt-2 text-xs text-slate-600">
+                      <p>Total Income: {currency(trends.summary.totalIncome)}</p>
+                      <p>Total Expense: {currency(trends.summary.totalExpense)}</p>
+                      <p>Total Savings: {currency(trends.summary.totalSavings)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="text-base font-semibold text-slate-900">Income vs Expense (Last {analytics.months} months)</h3>
             <BarChart series={analytics.series} />
@@ -2180,6 +2297,41 @@ export default function TransactionsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function TrendBarChart({ points }: { points: TrendPoint[] }) {
+  const width = 760;
+  const height = 240;
+  const max = Math.max(1, ...points.map((point) => Math.max(point.income, point.expense)));
+  const slot = width / Math.max(1, points.length);
+  const barWidth = Math.max(6, (slot - 16) / 2);
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Income and expense trends">
+      <line x1={0} y1={height - 28} x2={width} y2={height - 28} stroke="#cbd5e1" strokeWidth={1} />
+      {points.map((point, idx) => {
+        const x = idx * slot + 6;
+        const incomeHeight = (point.income / max) * 160;
+        const expenseHeight = (point.expense / max) * 160;
+        return (
+          <g key={point.key}>
+            <rect x={x} y={height - 28 - incomeHeight} width={barWidth} height={incomeHeight} fill="#16a34a" rx={2} />
+            <rect
+              x={x + barWidth + 3}
+              y={height - 28 - expenseHeight}
+              width={barWidth}
+              height={expenseHeight}
+              fill="#dc2626"
+              rx={2}
+            />
+            <text x={x} y={height - 10} fill="#334155" fontSize={9}>
+              {point.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 
