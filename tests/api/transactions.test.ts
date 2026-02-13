@@ -4,6 +4,7 @@ import type { NextApiResponse } from "next";
 
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
+    $transaction: vi.fn(),
     transaction: {
       count: vi.fn(),
       findMany: vi.fn(),
@@ -11,6 +12,7 @@ const { prismaMock } = vi.hoisted(() => ({
     },
     bankAccount: {
       findFirst: vi.fn(),
+      update: vi.fn(),
     },
     category: {
       findFirst: vi.fn(),
@@ -27,6 +29,12 @@ import { transactionsHandler } from "../../pages/api/transactions";
 describe("/api/transactions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$transaction.mockImplementation(async (cb: any) =>
+      cb({
+        transaction: prismaMock.transaction,
+        bankAccount: prismaMock.bankAccount,
+      })
+    );
   });
 
   it("GET returns paginated transactions for authenticated user", async () => {
@@ -40,7 +48,7 @@ describe("/api/transactions", () => {
       query: { page: "1", pageSize: "20", type: "income" },
     });
 
-    (req as any).auth = { userId: "user-1", neonAuthId: "neon-1" };
+    (req as any).auth = { userId: "user-1", email: "u@example.com" };
 
     await transactionsHandler(req as any, res as unknown as NextApiResponse);
 
@@ -64,7 +72,7 @@ describe("/api/transactions", () => {
       body: { amount: -10, type: "INCOME", bankAccountId: "acc-1" },
     });
 
-    (req as any).auth = { userId: "user-1", neonAuthId: "neon-1" };
+    (req as any).auth = { userId: "user-1", email: "u@example.com" };
 
     await transactionsHandler(req as any, res as unknown as NextApiResponse);
 
@@ -78,6 +86,7 @@ describe("/api/transactions", () => {
   it("POST creates transaction for valid payload", async () => {
     prismaMock.bankAccount.findFirst.mockResolvedValueOnce({ id: "acc-1" });
     prismaMock.category.findFirst.mockResolvedValueOnce({ id: "cat-1" });
+    prismaMock.bankAccount.update.mockResolvedValueOnce({ id: "acc-1", balance: 900 });
     prismaMock.transaction.create.mockResolvedValueOnce({ id: "tx-1" });
 
     const { req, res } = createMocks({
@@ -91,11 +100,12 @@ describe("/api/transactions", () => {
       },
     });
 
-    (req as any).auth = { userId: "user-1", neonAuthId: "neon-1" };
+    (req as any).auth = { userId: "user-1", email: "u@example.com" };
 
     await transactionsHandler(req as any, res as unknown as NextApiResponse);
 
     expect(prismaMock.transaction.create).toHaveBeenCalledTimes(1);
+    expect(prismaMock.bankAccount.update).toHaveBeenCalledTimes(1);
     expect(res._getStatusCode()).toBe(201);
     expect(res._getJSONData()).toEqual({
       data: { id: "tx-1" },
@@ -116,7 +126,7 @@ describe("/api/transactions", () => {
       },
     });
 
-    (req as any).auth = { userId: "user-1", neonAuthId: "neon-1" };
+    (req as any).auth = { userId: "user-1", email: "u@example.com" };
 
     await transactionsHandler(req as any, res as unknown as NextApiResponse);
 

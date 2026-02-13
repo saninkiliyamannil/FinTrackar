@@ -14,10 +14,19 @@ function parseId(req: AuthenticatedRequest): string | null {
   return typeof id === "string" && id ? id : null;
 }
 
+function signedAmountDelta(type: "INCOME" | "EXPENSE", amount: number) {
+  return type === "INCOME" ? amount : -amount;
+}
+
 async function findOwnedTransaction(id: string, userId: string) {
   return prisma.transaction.findFirst({
     where: { id, userId },
-    select: { id: true },
+    select: {
+      id: true,
+      bankAccountId: true,
+      amount: true,
+      type: true,
+    },
   });
 }
 
@@ -127,14 +136,53 @@ async function handlePatch(req: AuthenticatedRequest, res: NextApiResponse) {
     };
   }
 
-  const tx = await prisma.transaction.update({
-    where: { id },
-    data,
-    include: {
-      bankAccount: true,
-      category: true,
-      tags: { include: { tag: true } },
-    },
+  const nextType = type ?? existing.type;
+  const nextAmount = amount ?? Number(existing.amount);
+  const nextAccountId = bankAccountId ?? existing.bankAccountId ?? null;
+
+  if (!nextAccountId) {
+    return sendError(res, 400, "Transaction must have a bankAccountId", "VALIDATION_ERROR");
+  }
+
+  const tx = await prisma.$transaction(async (prismaTx) => {
+    const updated = await prismaTx.transaction.update({
+      where: { id },
+      data,
+      include: {
+        bankAccount: true,
+        category: true,
+        tags: { include: { tag: true } },
+      },
+    });
+
+    const oldDelta = signedAmountDelta(existing.type, Number(existing.amount));
+    const newDelta = signedAmountDelta(nextType, nextAmount);
+
+    if (existing.bankAccountId === nextAccountId) {
+      await prismaTx.bankAccount.update({
+        where: { id: nextAccountId },
+        data: {
+          balance: { increment: newDelta - oldDelta },
+        },
+      });
+    } else {
+      if (existing.bankAccountId) {
+        await prismaTx.bankAccount.update({
+          where: { id: existing.bankAccountId },
+          data: {
+            balance: { increment: -oldDelta },
+          },
+        });
+      }
+      await prismaTx.bankAccount.update({
+        where: { id: nextAccountId },
+        data: {
+          balance: { increment: newDelta },
+        },
+      });
+    }
+
+    return updated;
   });
 
   return sendOk(res, tx);
@@ -155,8 +203,19 @@ async function handleDelete(req: AuthenticatedRequest, res: NextApiResponse) {
 
   const existing = await findOwnedTransaction(id, req.auth.userId);
   if (!existing) return sendError(res, 404, "Transaction not found", "NOT_FOUND");
+  await prisma.$transaction(async (prismaTx) => {
+    await prismaTx.transaction.delete({ where: { id } });
 
-  await prisma.transaction.delete({ where: { id } });
+    if (existing.bankAccountId) {
+      const delta = signedAmountDelta(existing.type, Number(existing.amount));
+      await prismaTx.bankAccount.update({
+        where: { id: existing.bankAccountId },
+        data: {
+          balance: { increment: -delta },
+        },
+      });
+    }
+  });
   return sendOk(res, { ok: true });
 }
 

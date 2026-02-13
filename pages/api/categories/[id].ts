@@ -1,5 +1,6 @@
 import type { NextApiResponse } from "next";
 import { z } from "zod";
+import { CategoryType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   type AuthenticatedRequest,
@@ -10,7 +11,7 @@ import { checkRateLimit } from "@/lib/api/rate-limit";
 
 const updateSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
-  type: z.string().trim().min(1).max(20).optional(),
+  type: z.nativeEnum(CategoryType).optional(),
   color: z.string().trim().min(1).max(20).optional(),
   icon: z.string().trim().max(60).nullable().optional(),
 });

@@ -32,6 +32,10 @@ function parseDate(raw: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function signedAmountDelta(type: "INCOME" | "EXPENSE", amount: number) {
+  return type === TransactionType.INCOME ? amount : -amount;
+}
+
 function parsePagination(req: AuthenticatedRequest) {
   const page = Math.max(DEFAULT_PAGE, Number(req.query.page || DEFAULT_PAGE));
   const pageSize = Math.min(
@@ -137,29 +141,40 @@ async function handlePost(req: AuthenticatedRequest, res: NextApiResponse) {
     }
   }
 
-  const transaction = await prisma.transaction.create({
-    data: {
-      amount,
-      type,
-      note: note ?? null,
-      date: date ?? new Date(),
-      userId,
-      bankAccountId,
-      ...(typeof categoryId === "string" ? { categoryId } : {}),
-      tags:
-        Array.isArray(tagIds) && tagIds.length > 0
-          ? {
-              create: tagIds.map((tagId: string) => ({
-                tag: { connect: { id: tagId } },
-              })),
-            }
-          : undefined,
-    },
-    include: {
-      bankAccount: true,
-      category: true,
-      tags: { include: { tag: true } },
-    },
+  const transaction = await prisma.$transaction(async (tx) => {
+    const created = await tx.transaction.create({
+      data: {
+        amount,
+        type,
+        note: note ?? null,
+        date: date ?? new Date(),
+        userId,
+        bankAccountId,
+        ...(typeof categoryId === "string" ? { categoryId } : {}),
+        tags:
+          Array.isArray(tagIds) && tagIds.length > 0
+            ? {
+                create: tagIds.map((tagId: string) => ({
+                  tag: { connect: { id: tagId } },
+                })),
+              }
+            : undefined,
+      },
+      include: {
+        bankAccount: true,
+        category: true,
+        tags: { include: { tag: true } },
+      },
+    });
+
+    await tx.bankAccount.update({
+      where: { id: bankAccountId },
+      data: {
+        balance: { increment: signedAmountDelta(type, amount) },
+      },
+    });
+
+    return created;
   });
 
   return sendOk(res, transaction, 201);

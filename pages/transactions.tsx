@@ -708,33 +708,60 @@ export default function TransactionsPage() {
     window.location.href = `/api/transactions/export.csv?${query.toString()}`;
   }
 
-  if (status === "loading") return <p style={{ padding: 24 }}>Loading session...</p>;
+  const inputClass =
+    "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200";
+  const selectClass =
+    "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200";
+  const primaryButtonClass =
+    "inline-flex items-center justify-center rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60";
+  const subtleButtonClass =
+    "inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60";
+  const dangerButtonClass =
+    "inline-flex items-center justify-center rounded-md border border-rose-300 bg-white px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60";
+
+  if (status === "loading") {
+    return <p className="mx-auto max-w-6xl px-4 py-8 text-sm text-slate-600">Loading session...</p>;
+  }
 
   if (status !== "authenticated" || !user) {
     return (
-      <div style={{ padding: 24 }}>
-        <p>You must be signed in to view transactions.</p>
-        <button onClick={login}>Sign in</button>
+      <div className="mx-auto max-w-3xl px-4 py-12">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 className="text-xl font-semibold text-slate-900">Sign in required</h1>
+          <p className="mt-2 text-sm text-slate-600">You must be signed in to view transactions.</p>
+          <button onClick={login} className={`${primaryButtonClass} mt-5`}>
+            Sign in
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
-      <h1 style={{ marginBottom: 12 }}>Transactions Dashboard</h1>
+    <div className="min-h-full bg-gradient-to-b from-slate-50 to-white px-4 py-6">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Transactions Dashboard</h1>
+            <p className="mt-1 text-sm text-slate-500">Track accounts, categories, and transactions in one place.</p>
+          </div>
+          <button onClick={exportCsv} className={subtleButtonClass}>
+            Export CSV
+          </button>
+        </div>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <label>
-          Months:
-          <select aria-label="Months" value={months} onChange={(e) => setMonths(Number(e.target.value))} style={{ marginLeft: 8 }}>
+        <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-3">
+          <label className="text-sm font-medium text-slate-700">
+            Months
+            <select aria-label="Months" value={months} onChange={(e) => setMonths(Number(e.target.value))} className={`${selectClass} mt-1`}>
             <option value={3}>3</option>
             <option value={6}>6</option>
             <option value={12}>12</option>
           </select>
         </label>
 
-        <label>
-          Type:
+          <label className="text-sm font-medium text-slate-700">
+            Transaction Type
           <select
             aria-label="Type"
             value={typeFilter}
@@ -742,7 +769,7 @@ export default function TransactionsPage() {
               setPage(1);
               setTypeFilter(e.target.value as "ALL" | "INCOME" | "EXPENSE");
             }}
-            style={{ marginLeft: 8 }}
+            className={`${selectClass} mt-1`}
           >
             <option value="ALL">All</option>
             <option value="INCOME">Income</option>
@@ -750,32 +777,32 @@ export default function TransactionsPage() {
           </select>
         </label>
 
-        <label>
-          Breakdown:
+          <label className="text-sm font-medium text-slate-700">
+            Breakdown
           <select
             aria-label="Breakdown"
             value={breakdownType}
             onChange={(e) => setBreakdownType(e.target.value as "INCOME" | "EXPENSE")}
-            style={{ marginLeft: 8 }}
+            className={`${selectClass} mt-1`}
           >
             <option value="EXPENSE">Expense</option>
             <option value="INCOME">Income</option>
           </select>
         </label>
+        </div>
 
-        <button onClick={exportCsv}>Export CSV</button>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-        <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 12 }}>
-          <h3 style={{ marginTop: 0, marginBottom: 8 }}>Manage Accounts</h3>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-base font-semibold text-slate-900">Manage Accounts</h3>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <input
+              className={inputClass}
               placeholder="Account name"
               value={accountForm.name}
               onChange={(e) => setAccountForm((prev) => ({ ...prev, name: e.target.value }))}
             />
             <select
+              className={selectClass}
               value={accountForm.type}
               onChange={(e) =>
                 setAccountForm((prev) => ({
@@ -789,16 +816,19 @@ export default function TransactionsPage() {
               <option value="CREDIT">CREDIT</option>
               <option value="WALLET">WALLET</option>
             </select>
-            <button onClick={createAccount}>Add</button>
+              <button onClick={createAccount} className={primaryButtonClass}>
+                Add
+              </button>
           </div>
-          {accountFormError && <p style={{ color: "#b91c1c", marginTop: 0 }}>{accountFormError}</p>}
-          <ul style={{ paddingLeft: 18, margin: 0 }}>
+            {accountFormError && <p className="mt-2 text-sm text-rose-700">{accountFormError}</p>}
+            <ul className="mt-3 space-y-2">
             {accounts.map((acc) => (
-              <li key={acc.id} style={{ marginBottom: 6 }}>
+                <li key={acc.id} className="rounded-md border border-slate-200 p-2">
                 {editingAccountId === acc.id ? (
-                  <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <input value={editingAccountName} onChange={(e) => setEditingAccountName(e.target.value)} />
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                      <input className={inputClass} value={editingAccountName} onChange={(e) => setEditingAccountName(e.target.value)} />
                     <select
+                        className={selectClass}
                       value={editingAccountType}
                       onChange={(e) =>
                         setEditingAccountType(e.target.value as "CASH" | "BANK" | "CREDIT" | "WALLET")
@@ -809,30 +839,38 @@ export default function TransactionsPage() {
                       <option value="CREDIT">CREDIT</option>
                       <option value="WALLET">WALLET</option>
                     </select>
-                    <button onClick={() => saveAccount(acc)}>Save</button>
-                    <button onClick={() => setEditingAccountId(null)}>Cancel</button>
-                  </span>
+                      <div className="flex gap-2">
+                        <button onClick={() => saveAccount(acc)} className={primaryButtonClass}>Save</button>
+                        <button onClick={() => setEditingAccountId(null)} className={subtleButtonClass}>Cancel</button>
+                      </div>
+                    </div>
                 ) : (
-                  <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <strong>{acc.name}</strong> <em>{acc.type || "BANK"}</em>
-                    <button onClick={() => startEditAccount(acc)}>Edit</button>
-                    <button onClick={() => deleteAccount(acc)}>Delete</button>
-                  </span>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm text-slate-800">
+                        <strong>{acc.name}</strong> <span className="ml-1 text-slate-500">{acc.type || "BANK"}</span>
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={() => startEditAccount(acc)} className={subtleButtonClass}>Edit</button>
+                        <button onClick={() => deleteAccount(acc)} className={dangerButtonClass}>Delete</button>
+                      </div>
+                    </div>
                 )}
               </li>
             ))}
           </ul>
-        </div>
+          </section>
 
-        <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 12 }}>
-          <h3 style={{ marginTop: 0, marginBottom: 8 }}>Manage Categories</h3>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-base font-semibold text-slate-900">Manage Categories</h3>
+            <div className="mt-3 grid gap-2 sm:grid-cols-4">
             <input
+              className={inputClass}
               placeholder="Category name"
               value={categoryForm.name}
               onChange={(e) => setCategoryForm((prev) => ({ ...prev, name: e.target.value }))}
             />
             <select
+              className={selectClass}
               value={categoryForm.type}
               onChange={(e) =>
                 setCategoryForm((prev) => ({ ...prev, type: e.target.value as "INCOME" | "EXPENSE" }))
@@ -842,82 +880,90 @@ export default function TransactionsPage() {
               <option value="INCOME">INCOME</option>
             </select>
             <input
+              className="h-10 w-full rounded-md border border-slate-300 bg-white px-2"
               type="color"
               value={categoryForm.color}
               onChange={(e) => setCategoryForm((prev) => ({ ...prev, color: e.target.value }))}
               title="Category color"
             />
-            <button onClick={createCategory}>Add</button>
+              <button onClick={createCategory} className={primaryButtonClass}>Add</button>
           </div>
-          {categoryFormError && <p style={{ color: "#b91c1c", marginTop: 0 }}>{categoryFormError}</p>}
-          <ul style={{ paddingLeft: 18, margin: 0 }}>
+            {categoryFormError && <p className="mt-2 text-sm text-rose-700">{categoryFormError}</p>}
+            <ul className="mt-3 space-y-2">
             {categories.map((cat) => (
-              <li key={cat.id} style={{ marginBottom: 6 }}>
+                <li key={cat.id} className="rounded-md border border-slate-200 p-2">
                 {editingCategoryId === cat.id ? (
-                  <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <input value={editingCategoryName} onChange={(e) => setEditingCategoryName(e.target.value)} />
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                      <input className={inputClass} value={editingCategoryName} onChange={(e) => setEditingCategoryName(e.target.value)} />
                     <select
+                        className={selectClass}
                       value={editingCategoryType}
                       onChange={(e) => setEditingCategoryType(e.target.value as "INCOME" | "EXPENSE")}
                     >
                       <option value="EXPENSE">EXPENSE</option>
                       <option value="INCOME">INCOME</option>
                     </select>
-                    <button onClick={() => saveCategory(cat)}>Save</button>
-                    <button onClick={() => setEditingCategoryId(null)}>Cancel</button>
-                  </span>
+                      <div className="flex gap-2">
+                        <button onClick={() => saveCategory(cat)} className={primaryButtonClass}>Save</button>
+                        <button onClick={() => setEditingCategoryId(null)} className={subtleButtonClass}>Cancel</button>
+                      </div>
+                    </div>
                 ) : (
-                  <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <strong>{cat.name}</strong> <em>{cat.type}</em>
-                    <button onClick={() => startEditCategory(cat)}>Edit</button>
-                    <button onClick={() => deleteCategory(cat)}>Delete</button>
-                  </span>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm text-slate-800">
+                        <strong>{cat.name}</strong> <span className="ml-1 text-slate-500">{cat.type}</span>
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={() => startEditCategory(cat)} className={subtleButtonClass}>Edit</button>
+                        <button onClick={() => deleteCategory(cat)} className={dangerButtonClass}>Delete</button>
+                      </div>
+                    </div>
                 )}
               </li>
             ))}
           </ul>
+          </section>
         </div>
-      </div>
 
-      <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-        <h3 style={{ marginTop: 0, marginBottom: 10 }}>Create Transaction</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
-          <label>
+        <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h3 className="text-base font-semibold text-slate-900">Create Transaction</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <label className="text-sm font-medium text-slate-700">
             Amount
             <input
+              className={`${inputClass} mt-1`}
               value={createForm.amount}
               onChange={(e) => setCreateForm((prev) => ({ ...prev, amount: e.target.value }))}
-              style={{ width: "100%" }}
             />
-            {createErrors.amount && <div style={{ color: "#b91c1c", fontSize: 12 }}>{createErrors.amount}</div>}
+              {createErrors.amount && <div className="mt-1 text-xs text-rose-700">{createErrors.amount}</div>}
           </label>
-          <label>
+            <label className="text-sm font-medium text-slate-700">
             Type
             <select
+              className={`${selectClass} mt-1`}
               value={createForm.type}
               onChange={(e) => setCreateForm((prev) => ({ ...prev, type: e.target.value as "INCOME" | "EXPENSE" }))}
-              style={{ width: "100%" }}
             >
               <option value="EXPENSE">Expense</option>
               <option value="INCOME">Income</option>
             </select>
           </label>
-          <label>
+            <label className="text-sm font-medium text-slate-700">
             Date
             <input
+              className={`${inputClass} mt-1`}
               type="date"
               value={createForm.date}
               onChange={(e) => setCreateForm((prev) => ({ ...prev, date: e.target.value }))}
-              style={{ width: "100%" }}
             />
-            {createErrors.date && <div style={{ color: "#b91c1c", fontSize: 12 }}>{createErrors.date}</div>}
+              {createErrors.date && <div className="mt-1 text-xs text-rose-700">{createErrors.date}</div>}
           </label>
-          <label>
+            <label className="text-sm font-medium text-slate-700">
             Account
             <select
+              className={`${selectClass} mt-1`}
               value={createForm.bankAccountId}
               onChange={(e) => setCreateForm((prev) => ({ ...prev, bankAccountId: e.target.value }))}
-              style={{ width: "100%" }}
             >
               <option value="">Select</option>
               {accounts.map((acc) => (
@@ -926,14 +972,14 @@ export default function TransactionsPage() {
                 </option>
               ))}
             </select>
-            {createErrors.bankAccountId && <div style={{ color: "#b91c1c", fontSize: 12 }}>{createErrors.bankAccountId}</div>}
+              {createErrors.bankAccountId && <div className="mt-1 text-xs text-rose-700">{createErrors.bankAccountId}</div>}
           </label>
-          <label>
+            <label className="text-sm font-medium text-slate-700">
             Category
             <select
+              className={`${selectClass} mt-1`}
               value={createForm.categoryId}
               onChange={(e) => setCreateForm((prev) => ({ ...prev, categoryId: e.target.value }))}
-              style={{ width: "100%" }}
             >
               <option value="">None</option>
               {filteredCategories.map((cat) => (
@@ -943,101 +989,101 @@ export default function TransactionsPage() {
               ))}
             </select>
           </label>
-          <label>
+            <label className="text-sm font-medium text-slate-700">
             Note
             <input
+              className={`${inputClass} mt-1`}
               value={createForm.note}
               onChange={(e) => setCreateForm((prev) => ({ ...prev, note: e.target.value }))}
-              style={{ width: "100%" }}
             />
           </label>
         </div>
-        <button onClick={createTransaction} disabled={mutationBusy} style={{ marginTop: 10 }}>
-          {mutationBusy ? "Saving..." : "Add Transaction"}
-        </button>
-      </div>
+          <button onClick={createTransaction} disabled={mutationBusy} className={`${primaryButtonClass} mt-4`}>
+            {mutationBusy ? "Saving..." : "Add Transaction"}
+          </button>
+        </section>
 
-      {loading && <p>Loading dashboard...</p>}
-      {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
+        {loading && <p className="text-sm text-slate-600">Loading dashboard...</p>}
+        {error && <p className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 
-      {!loading && analytics && (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 16 }}>
+        {!loading && analytics && (
+          <>
+            <div className="mb-6 grid gap-3 md:grid-cols-3">
             {summaryCards?.map((card) => (
-              <div key={card.label} style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 12 }}>
-                <div style={{ fontSize: 12, color: "#64748b" }}>{card.label}</div>
+                <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="text-xs uppercase tracking-wide text-slate-500">{card.label}</div>
                 <div style={{ fontSize: 20, fontWeight: 600, color: card.color }}>{card.value}</div>
               </div>
             ))}
           </div>
 
-          <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-            <h3 style={{ marginTop: 0 }}>Income vs Expense (Last {analytics.months} months)</h3>
+            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-base font-semibold text-slate-900">Income vs Expense (Last {analytics.months} months)</h3>
             <BarChart series={analytics.series} />
           </div>
 
-          <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-            <h3 style={{ marginTop: 0 }}>Net Trend</h3>
+            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-base font-semibold text-slate-900">Net Trend</h3>
             <NetLineChart series={analytics.series} />
           </div>
 
-          <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 12, marginBottom: 20 }}>
-            <h3 style={{ marginTop: 0 }}>Category Breakdown ({breakdownType})</h3>
+            <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-base font-semibold text-slate-900">Category Breakdown ({breakdownType})</h3>
             <CategoryBreakdownChart items={breakdown?.items || []} />
           </div>
-        </>
-      )}
+          </>
+        )}
 
-      {!loading && (
-        <>
-          <h2 style={{ marginBottom: 8 }}>Recent Transactions</h2>
+        {!loading && (
+          <>
+            <h2 className="mb-3 text-lg font-semibold text-slate-900">Recent Transactions</h2>
           {transactions.length === 0 ? (
-            <p>No transactions yet.</p>
+              <p className="text-sm text-slate-600">No transactions yet.</p>
           ) : (
-            <ul style={{ paddingLeft: 16 }}>
+              <ul className="space-y-3">
               {transactions.map((tx) => (
-                <li key={tx.id} style={{ marginBottom: 10 }}>
+                  <li key={tx.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   {editingId === tx.id ? (
-                    <div style={{ border: "1px solid #e2e8f0", borderRadius: 6, padding: 10 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
-                        <label>
+                      <div className="rounded-md border border-slate-200 p-3">
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <label className="text-sm font-medium text-slate-700">
                           Amount
                           <input
+                            className={`${inputClass} mt-1`}
                             value={editForm.amount}
                             onChange={(e) => setEditForm((prev) => ({ ...prev, amount: e.target.value }))}
-                            style={{ width: "100%" }}
                           />
-                          {editErrors.amount && <div style={{ color: "#b91c1c", fontSize: 12 }}>{editErrors.amount}</div>}
+                            {editErrors.amount && <div className="mt-1 text-xs text-rose-700">{editErrors.amount}</div>}
                         </label>
-                        <label>
+                          <label className="text-sm font-medium text-slate-700">
                           Type
                           <select
+                            className={`${selectClass} mt-1`}
                             value={editForm.type}
                             onChange={(e) =>
                               setEditForm((prev) => ({ ...prev, type: e.target.value as "INCOME" | "EXPENSE" }))
                             }
-                            style={{ width: "100%" }}
                           >
                             <option value="EXPENSE">Expense</option>
                             <option value="INCOME">Income</option>
                           </select>
                         </label>
-                        <label>
+                          <label className="text-sm font-medium text-slate-700">
                           Date
                           <input
+                            className={`${inputClass} mt-1`}
                             type="date"
                             value={editForm.date}
                             onChange={(e) => setEditForm((prev) => ({ ...prev, date: e.target.value }))}
-                            style={{ width: "100%" }}
                           />
-                          {editErrors.date && <div style={{ color: "#b91c1c", fontSize: 12 }}>{editErrors.date}</div>}
+                            {editErrors.date && <div className="mt-1 text-xs text-rose-700">{editErrors.date}</div>}
                         </label>
-                        <label>
+                          <label className="text-sm font-medium text-slate-700">
                           Account
                           <select
+                            className={`${selectClass} mt-1`}
                             value={editForm.bankAccountId}
                             onChange={(e) => setEditForm((prev) => ({ ...prev, bankAccountId: e.target.value }))}
-                            style={{ width: "100%" }}
                           >
                             <option value="">Select</option>
                             {accounts.map((acc) => (
@@ -1047,15 +1093,15 @@ export default function TransactionsPage() {
                             ))}
                           </select>
                           {editErrors.bankAccountId && (
-                            <div style={{ color: "#b91c1c", fontSize: 12 }}>{editErrors.bankAccountId}</div>
+                              <div className="mt-1 text-xs text-rose-700">{editErrors.bankAccountId}</div>
                           )}
                         </label>
-                        <label>
+                          <label className="text-sm font-medium text-slate-700">
                           Category
                           <select
+                            className={`${selectClass} mt-1`}
                             value={editForm.categoryId}
                             onChange={(e) => setEditForm((prev) => ({ ...prev, categoryId: e.target.value }))}
-                            style={{ width: "100%" }}
                           >
                             <option value="">None</option>
                             {filteredEditCategories.map((cat) => (
@@ -1065,41 +1111,44 @@ export default function TransactionsPage() {
                             ))}
                           </select>
                         </label>
-                        <label>
+                          <label className="text-sm font-medium text-slate-700">
                           Note
                           <input
+                            className={`${inputClass} mt-1`}
                             value={editForm.note}
                             onChange={(e) => setEditForm((prev) => ({ ...prev, note: e.target.value }))}
-                            style={{ width: "100%" }}
                           />
                         </label>
                       </div>
-                      <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-                        <button onClick={() => saveEdit(tx.id)} disabled={mutationBusy}>
+                        <div className="mt-3 flex gap-2">
+                          <button onClick={() => saveEdit(tx.id)} disabled={mutationBusy} className={primaryButtonClass}>
                           Save
                         </button>
-                        <button onClick={() => setEditingId(null)} disabled={mutationBusy}>
+                          <button onClick={() => setEditingId(null)} disabled={mutationBusy} className={subtleButtonClass}>
                           Cancel
                         </button>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <strong>{tx.type}</strong> {currency(Number(tx.amount))}
-                      <br />
-                      <span style={{ color: "#64748b" }}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <strong className="text-slate-900">
+                            {tx.type} {currency(Number(tx.amount))}
+                          </strong>
+                          <div className="flex gap-2">
+                            <button onClick={() => startEdit(tx)} disabled={mutationBusy || tx.id.startsWith("temp-")} className={subtleButtonClass}>
+                              Edit
+                            </button>
+                            <button onClick={() => void deleteTransaction(tx)} disabled={mutationBusy || tx.id.startsWith("temp-")} className={dangerButtonClass}>
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                        <span className="mt-1 block text-sm text-slate-500">
                         {new Date(tx.date).toLocaleDateString()} {tx.note ? `- ${tx.note}` : ""}{" "}
                         {tx.bankAccount?.name ? `- ${tx.bankAccount.name}` : ""}
                         {tx.category?.name ? `- ${tx.category.name}` : ""}
                       </span>
-                      <div style={{ marginTop: 4, display: "flex", gap: 8 }}>
-                        <button onClick={() => startEdit(tx)} disabled={mutationBusy || tx.id.startsWith("temp-")}>
-                          Edit
-                        </button>
-                        <button onClick={() => void deleteTransaction(tx)} disabled={mutationBusy || tx.id.startsWith("temp-")}>
-                          Delete
-                        </button>
-                      </div>
                     </>
                   )}
                 </li>
@@ -1107,17 +1156,18 @@ export default function TransactionsPage() {
             </ul>
           )}
 
-          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+            <div className="mt-4 flex items-center gap-2">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className={subtleButtonClass}>
               Prev
             </button>
-            <span>Page {page}</span>
-            <button onClick={() => setPage((p) => p + 1)} disabled={transactions.length < pageSize}>
+              <span className="text-sm text-slate-600">Page {page}</span>
+              <button onClick={() => setPage((p) => p + 1)} disabled={transactions.length < pageSize} className={subtleButtonClass}>
               Next
             </button>
           </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
