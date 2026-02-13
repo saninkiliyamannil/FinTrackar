@@ -4,7 +4,9 @@ import type { NextApiResponse } from "next";
 
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
-    $queryRaw: vi.fn(),
+    transaction: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -21,7 +23,7 @@ describe("/api/analytics/monthly", () => {
 
   it("returns 405 for non-GET methods", async () => {
     const { req, res } = createMocks({ method: "POST" });
-    (req as any).auth = { userId: "u-1", neonAuthId: "n-1" };
+    (req as any).auth = { userId: "u-1", email: "u@example.com" };
 
     await monthlyAnalyticsHandler(req as any, res as unknown as NextApiResponse);
 
@@ -34,20 +36,22 @@ describe("/api/analytics/monthly", () => {
   });
 
   it("returns normalized monthly series and summary", async () => {
-    prismaMock.$queryRaw.mockResolvedValueOnce([
-      { month: new Date("2026-01-01T00:00:00.000Z"), income: "200", expense: "50" },
-      { month: new Date("2026-02-01T00:00:00.000Z"), income: "100", expense: "125" },
+    prismaMock.transaction.findMany.mockResolvedValueOnce([
+      { date: new Date("2026-01-04T00:00:00.000Z"), type: "INCOME", amount: "200" },
+      { date: new Date("2026-01-06T00:00:00.000Z"), type: "EXPENSE", amount: "50" },
+      { date: new Date("2026-02-10T00:00:00.000Z"), type: "INCOME", amount: "100" },
+      { date: new Date("2026-02-11T00:00:00.000Z"), type: "EXPENSE", amount: "125" },
     ]);
 
     const { req, res } = createMocks({
       method: "GET",
       query: { months: "2" },
     });
-    (req as any).auth = { userId: "u-1", neonAuthId: "n-1" };
+    (req as any).auth = { userId: "u-1", email: "u@example.com" };
 
     await monthlyAnalyticsHandler(req as any, res as unknown as NextApiResponse);
 
-    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prismaMock.transaction.findMany).toHaveBeenCalledTimes(1);
     expect(res._getStatusCode()).toBe(200);
 
     const body = res._getJSONData();
@@ -62,12 +66,12 @@ describe("/api/analytics/monthly", () => {
   });
 
   it("clamps months query to max range", async () => {
-    prismaMock.$queryRaw.mockResolvedValueOnce([]);
+    prismaMock.transaction.findMany.mockResolvedValueOnce([]);
     const { req, res } = createMocks({
       method: "GET",
       query: { months: "999" },
     });
-    (req as any).auth = { userId: "u-1", neonAuthId: "n-1" };
+    (req as any).auth = { userId: "u-1", email: "u@example.com" };
 
     await monthlyAnalyticsHandler(req as any, res as unknown as NextApiResponse);
 

@@ -3,15 +3,33 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sendError, sendOk } from "@/lib/api/response";
 import { setSessionCookie } from "@/lib/auth/session";
+import { checkRateLimit } from "@/lib/api/rate-limit";
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(320),
 });
 
+function getClientIdentifier(req: NextApiRequest) {
+  const forwarded = req.headers["x-forwarded-for"];
+  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  const first = raw?.split(",")[0]?.trim();
+  return first || req.socket.remoteAddress || "unknown";
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return sendError(res, 405, `Method ${req.method} not allowed`, "METHOD_NOT_ALLOWED");
+  }
+
+  const clientId = getClientIdentifier(req);
+  const ipLimit = checkRateLimit({
+    key: `auth:login:ip:${clientId}`,
+    limit: 30,
+    windowMs: 60 * 1000,
+  });
+  if (!ipLimit.allowed) {
+    return sendError(res, 429, "Too many requests", "RATE_LIMITED");
   }
 
   const parsed = loginSchema.safeParse(req.body || {});
@@ -20,6 +38,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const email = parsed.data.email.toLowerCase();
+  const emailLimit = checkRateLimit({
+    key: `auth:login:email:${email}`,
+    limit: 12,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (!emailLimit.allowed) {
+    return sendError(res, 429, "Too many requests", "RATE_LIMITED");
+  }
 
   try {
     const user = await prisma.user.findUnique({

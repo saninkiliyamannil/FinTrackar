@@ -2,17 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks } from "node-mocks-http";
 import type { NextApiResponse } from "next";
 
-const { validateNeonSessionMock, prismaMock } = vi.hoisted(() => ({
-  validateNeonSessionMock: vi.fn(),
+const { getSessionFromRequestMock, prismaMock } = vi.hoisted(() => ({
+  getSessionFromRequestMock: vi.fn(),
   prismaMock: {
     user: {
-      upsert: vi.fn(),
+      findUnique: vi.fn(),
     },
   },
 }));
 
-vi.mock("@/lib/auth/neon", () => ({
-  validateNeonSession: validateNeonSessionMock,
+vi.mock("@/lib/auth/session", () => ({
+  getSessionFromRequest: getSessionFromRequestMock,
+  clearSessionCookie: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -26,7 +27,7 @@ describe("Default export auth wrapping", () => {
   });
 
   it("transactions/[id] default export returns 401 when auth fails", async () => {
-    validateNeonSessionMock.mockRejectedValueOnce(new Error("Unauthorized"));
+    getSessionFromRequestMock.mockResolvedValueOnce(null);
     const module = await import("../../pages/api/transactions/[id]");
     const route = module.default;
 
@@ -46,7 +47,7 @@ describe("Default export auth wrapping", () => {
   });
 
   it("analytics/monthly default export returns 401 when auth fails", async () => {
-    validateNeonSessionMock.mockRejectedValueOnce(new Error("Unauthorized"));
+    getSessionFromRequestMock.mockResolvedValueOnce(null);
     const module = await import("../../pages/api/analytics/monthly");
     const route = module.default;
 
@@ -63,14 +64,13 @@ describe("Default export auth wrapping", () => {
   });
 
   it("analytics/monthly default export passes to handler after auth", async () => {
-    validateNeonSessionMock.mockResolvedValueOnce({
-      neonAuthId: "neon-user-1",
+    getSessionFromRequestMock.mockResolvedValueOnce({
+      userId: "db-user-1",
       email: "u@example.com",
-      displayName: "User One",
     });
-    prismaMock.user.upsert.mockResolvedValueOnce({
+    prismaMock.user.findUnique.mockResolvedValueOnce({
       id: "db-user-1",
-      neonAuthId: "neon-user-1",
+      email: "u@example.com",
     });
 
     const module = await import("../../pages/api/analytics/monthly");

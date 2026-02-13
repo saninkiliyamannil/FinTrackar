@@ -45,3 +45,7 @@ export function checkRateLimit(options: RateLimitOptions) {
     resetAt: current.resetAt,
   };
 }
+
+export function resetRateLimitBuckets() {
+  buckets.clear();
+}

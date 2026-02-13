@@ -2,35 +2,36 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMocks } from "node-mocks-http";
 import type { NextApiResponse } from "next";
 
-vi.mock("@/lib/auth/neon", () => ({
-  validateNeonSession: vi.fn(),
+vi.mock("@/lib/auth/session", () => ({
+  getSessionFromRequest: vi.fn(),
+  clearSessionCookie: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: {
-      upsert: vi.fn(),
+      findUnique: vi.fn(),
     },
   },
 }));
 
-import { withNeonAuth } from "@/lib/api/with-neon-auth";
-import { validateNeonSession } from "@/lib/auth/neon";
+import { withAuth } from "@/lib/api/with-auth";
+import { getSessionFromRequest } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 
-const validateNeonSessionMock = vi.mocked(validateNeonSession);
-const upsertMock = vi.mocked(prisma.user.upsert);
+const getSessionFromRequestMock = vi.mocked(getSessionFromRequest);
+const findUniqueMock = vi.mocked(prisma.user.findUnique);
 
-describe("withNeonAuth", () => {
+describe("withAuth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
-  it("returns 401 when token validation fails", async () => {
-    validateNeonSessionMock.mockRejectedValueOnce(new Error("Unauthorized"));
+  it("returns 401 when session parsing fails", async () => {
+    getSessionFromRequestMock.mockResolvedValueOnce(null);
 
-    const handler = withNeonAuth(async () => {});
+    const handler = withAuth(async () => {});
     const { req, res } = createMocks({ method: "GET" });
 
     await handler(req, res as unknown as NextApiResponse);
@@ -43,24 +44,23 @@ describe("withNeonAuth", () => {
     });
   });
 
-  it("injects req.auth and continues when token is valid", async () => {
-    validateNeonSessionMock.mockResolvedValueOnce({
-      neonAuthId: "neon-user-1",
+  it("injects req.auth and continues when session is valid", async () => {
+    getSessionFromRequestMock.mockResolvedValueOnce({
+      userId: "db-user-1",
       email: "u@example.com",
-      displayName: "User One",
     });
-    upsertMock.mockResolvedValueOnce({ id: "db-user-1", neonAuthId: "neon-user-1" });
+    findUniqueMock.mockResolvedValueOnce({ id: "db-user-1", email: "u@example.com" } as any);
 
-    const handler = withNeonAuth(async (req, res) => {
+    const handler = withAuth(async (req, res) => {
       expect(req.auth.userId).toBe("db-user-1");
-      expect(req.auth.neonAuthId).toBe("neon-user-1");
+      expect(req.auth.email).toBe("u@example.com");
       res.status(200).json({ ok: true });
     });
 
     const { req, res } = createMocks({ method: "GET" });
     await handler(req, res as unknown as NextApiResponse);
 
-    expect(upsertMock).toHaveBeenCalledTimes(1);
+    expect(findUniqueMock).toHaveBeenCalledTimes(1);
     expect(res._getStatusCode()).toBe(200);
     expect(res._getJSONData()).toEqual({ ok: true });
   });

@@ -4,7 +4,9 @@ import type { NextApiResponse } from "next";
 
 const { prismaMock } = vi.hoisted(() => ({
   prismaMock: {
-    $queryRaw: vi.fn(),
+    transaction: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -21,7 +23,7 @@ describe("/api/analytics/category-breakdown", () => {
 
   it("returns method not allowed for POST", async () => {
     const { req, res } = createMocks({ method: "POST" });
-    (req as any).auth = { userId: "u-1", neonAuthId: "n-1" };
+    (req as any).auth = { userId: "u-1", email: "u@example.com" };
 
     await categoryBreakdownHandler(req as any, res as unknown as NextApiResponse);
     expect(res._getStatusCode()).toBe(405);
@@ -33,16 +35,24 @@ describe("/api/analytics/category-breakdown", () => {
   });
 
   it("returns normalized category items", async () => {
-    prismaMock.$queryRaw.mockResolvedValueOnce([
-      { categoryId: "c-1", categoryName: "Food", amount: "250.5" },
-      { categoryId: null, categoryName: null, amount: "49.5" },
+    prismaMock.transaction.findMany.mockResolvedValueOnce([
+      {
+        categoryId: "c-1",
+        category: { name: "Food" },
+        amount: "250.5",
+      },
+      {
+        categoryId: null,
+        category: null,
+        amount: "49.5",
+      },
     ]);
 
     const { req, res } = createMocks({
       method: "GET",
       query: { months: "3", type: "EXPENSE" },
     });
-    (req as any).auth = { userId: "u-1", neonAuthId: "n-1" };
+    (req as any).auth = { userId: "u-1", email: "u@example.com" };
 
     await categoryBreakdownHandler(req as any, res as unknown as NextApiResponse);
     const body = res._getJSONData();
