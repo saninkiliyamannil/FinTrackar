@@ -1,0 +1,73 @@
+{
+  "project": {
+    "name": "FinTrackar",
+    "version": "0.3.0",
+    "status": "Active Development",
+    "architecture": "Next.js (Pages Router) + Prisma ORM + MySQL"
+  },
+  "tech_stack": {
+    "frontend": "Next.js + TypeScript + Tailwind CSS",
+    "backend": "Next.js API Routes",
+    "database": "MySQL",
+    "orm": "Prisma",
+    "authentication": "Neon Auth (JWT/JWKS validation)",
+    "deployment": "Vercel"
+  },
+  "data_model": {
+    "User": {
+      "id": "string (cuid, primary key)",
+      "neonAuthId": "string (unique)",
+      "email": "string? (unique)",
+      "displayName": "string?",
+      "createdAt": "timestamp",
+      "updatedAt": "timestamp"
+    },
+    "Category": {
+      "id": "string (cuid, primary key)",
+      "name": "string",
+      "type": "string",
+      "color": "string?",
+      "userId": "string (foreign key -> User.id)",
+      "createdAt": "timestamp",
+      "updatedAt": "timestamp"
+    },
+    "Transaction": {
+      "id": "string (cuid, primary key)",
+      "amount": "decimal",
+      "type": "enum (EXPENSE | INCOME)",
+      "bankAccountId": "string?",
+      "categoryId": "string?",
+      "note": "string?",
+      "date": "timestamp",
+      "userId": "string (foreign key -> User.id)",
+      "createdAt": "timestamp",
+      "updatedAt": "timestamp"
+    }
+  },
+  "security_model": {
+    "authentication": "Neon token validation in API middleware",
+    "authorization": "User isolation via userId scoping",
+    "api_controls": [
+      "Input validation via zod",
+      "Write route rate limiting",
+      "Standardized error envelopes"
+    ]
+  },
+  "response_contract": {
+    "success": {
+      "code": "OK",
+      "data": "object",
+      "error": null
+    },
+    "error": {
+      "code": "ERROR",
+      "data": null,
+      "error": {
+        "code": "string",
+        "message": "string",
+        "details": "optional"
+      }
+    }
+  }
+}
+

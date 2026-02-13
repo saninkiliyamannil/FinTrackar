@@ -1,0 +1,57 @@
+{
+  "milestones": {
+    "0.1.0": "Auth + Category API",
+    "0.2.0": "Transaction CRUD",
+    "0.3.0": "Analytics Dashboard",
+    "0.4.0": "Quality + e2e coverage",
+    "0.5.0": "Operations UI (accounts/categories)",
+    "1.0.0": "Production Release"
+  },
+  "phases": {
+    "phase_1_foundation": {
+      "status": "Completed",
+      "tasks": [
+        "Neon Auth middleware",
+        "Prisma schema sync",
+        "Protected API wrappers"
+      ]
+    },
+    "phase_2_core_features": {
+      "status": "Completed",
+      "tasks": [
+        "Transaction CRUD",
+        "Filtering and pagination",
+        "Account and category management APIs"
+      ]
+    },
+    "phase_3_analytics": {
+      "status": "Completed",
+      "tasks": [
+        "Monthly aggregation endpoint",
+        "Category breakdown endpoint",
+        "Dashboard chart integration"
+      ]
+    },
+    "phase_4_quality": {
+      "status": "In Progress",
+      "tasks": [
+        "Unit/API tests in Vitest",
+        "Route-level auth wrapper tests",
+        "Playwright create/edit/delete transaction flows"
+      ]
+    },
+    "phase_5_release": {
+      "status": "In Progress",
+      "tasks": [
+        "CI workflow with build + tests",
+        "Prisma migrate deploy in production",
+        "Vercel environment hardening"
+      ]
+    }
+  },
+  "technical_debt": [
+    "Move from Pages Router to App Router if required",
+    "Persist rate limiting in shared store (Redis) for multi-instance deploy",
+    "Run e2e against live test DB alongside mocked API suite"
+  ]
+}

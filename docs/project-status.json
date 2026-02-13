@@ -1,0 +1,59 @@
+{
+  "project": {
+    "name": "FinTrackar",
+    "type": "Finance Tracking Web Application",
+    "tech_stack": {
+      "frontend": "Next.js + TypeScript + Tailwind CSS",
+      "backend": "Next.js API routes + Prisma",
+      "database": "MySQL",
+      "authentication": "Neon Auth",
+      "deployment": "Vercel"
+    }
+  },
+  "features": {
+    "completed": [
+      "Protected middleware with Neon session validation",
+      "Transaction APIs with full CRUD",
+      "Account and category management APIs (GET/POST/PATCH/DELETE)",
+      "Analytics endpoints (monthly and category breakdown)",
+      "CSV export endpoint",
+      "Dashboard transaction CRUD UI with optimistic updates",
+      "Dashboard account/category management panels",
+      "Envelope-based API responses",
+      "Rate limiting for write routes",
+      "Unit/API tests and route-level auth tests"
+    ],
+    "in_progress": [
+      "Playwright e2e suite expansion",
+      "Production deployment hardening"
+    ],
+    "pending": [
+      "Recurring transactions",
+      "Notification reminders",
+      "Budget planning workflows"
+    ]
+  },
+  "api_structure": {
+    "routes": [
+      "GET /api/auth/session",
+      "GET/POST /api/accounts",
+      "PATCH/DELETE /api/accounts/:id",
+      "GET/POST /api/categories",
+      "PATCH/DELETE /api/categories/:id",
+      "GET/POST /api/transactions",
+      "GET/PATCH/DELETE /api/transactions/:id",
+      "GET /api/transactions/export.csv",
+      "GET /api/analytics/monthly",
+      "GET /api/analytics/category-breakdown",
+      "GET /api/health"
+    ],
+    "response_contract": "{ data, error, code }"
+  },
+  "current_blockers": [],
+  "next_action_steps": [
+    "Run prisma migrate deploy in production",
+    "Install Playwright browsers and run e2e locally",
+    "Configure production env vars for MySQL and auth"
+  ]
+}
+
