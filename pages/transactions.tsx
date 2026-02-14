@@ -317,7 +317,7 @@ export default function TransactionsPage() {
     () => categories.filter((cat) => cat.type.toUpperCase() === editForm.type),
     [categories, editForm.type]
   );
-    const loadDashboardData = useCallback(async () => {
+  const loadDashboardData = useCallback(async () => {
     if (status !== "authenticated") return;
 
     setLoading(true);
@@ -807,41 +807,41 @@ export default function TransactionsPage() {
           <label className="text-sm font-medium text-slate-700">
             Months
             <select aria-label="Months" value={months} onChange={(e) => setMonths(Number(e.target.value))} className={`${selectClass} mt-1`}>
-            <option value={3}>3</option>
-            <option value={6}>6</option>
-            <option value={12}>12</option>
-          </select>
-        </label>
+              <option value={3}>3</option>
+              <option value={6}>6</option>
+              <option value={12}>12</option>
+            </select>
+          </label>
 
           <label className="text-sm font-medium text-slate-700">
             Transaction Type
-          <select
-            aria-label="Type"
-            value={typeFilter}
-            onChange={(e) => {
-              setPage(1);
-              setTypeFilter(e.target.value as "ALL" | "INCOME" | "EXPENSE");
-            }}
-            className={`${selectClass} mt-1`}
-          >
-            <option value="ALL">All</option>
-            <option value="INCOME">Income</option>
-            <option value="EXPENSE">Expense</option>
-          </select>
-        </label>
+            <select
+              aria-label="Type"
+              value={typeFilter}
+              onChange={(e) => {
+                setPage(1);
+                setTypeFilter(e.target.value as "ALL" | "INCOME" | "EXPENSE");
+              }}
+              className={`${selectClass} mt-1`}
+            >
+              <option value="ALL">All</option>
+              <option value="INCOME">Income</option>
+              <option value="EXPENSE">Expense</option>
+            </select>
+          </label>
 
           <label className="text-sm font-medium text-slate-700">
             Breakdown
-          <select
-            aria-label="Breakdown"
-            value={breakdownType}
-            onChange={(e) => setBreakdownType(e.target.value as "INCOME" | "EXPENSE")}
-            className={`${selectClass} mt-1`}
-          >
-            <option value="EXPENSE">Expense</option>
-            <option value="INCOME">Income</option>
-          </select>
-        </label>
+            <select
+              aria-label="Breakdown"
+              value={breakdownType}
+              onChange={(e) => setBreakdownType(e.target.value as "INCOME" | "EXPENSE")}
+              className={`${selectClass} mt-1`}
+            >
+              <option value="EXPENSE">Expense</option>
+              <option value="INCOME">Income</option>
+            </select>
+          </label>
 
           <label className="text-sm font-medium text-slate-700">
             Trend Period
@@ -890,56 +890,56 @@ export default function TransactionsPage() {
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="text-base font-semibold text-slate-900">Manage Accounts</h3>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <input
-              className={inputClass}
-              placeholder="Account name"
-              value={accountForm.name}
-              onChange={(e) => setAccountForm((prev) => ({ ...prev, name: e.target.value }))}
-            />
-            <select
-              className={selectClass}
-              value={accountForm.type}
-              onChange={(e) =>
-                setAccountForm((prev) => ({
-                  ...prev,
-                  type: e.target.value as "CASH" | "BANK" | "CREDIT" | "WALLET",
-                }))
-              }
-            >
-              <option value="CASH">CASH</option>
-              <option value="BANK">BANK</option>
-              <option value="CREDIT">CREDIT</option>
-              <option value="WALLET">WALLET</option>
-            </select>
+              <input
+                className={inputClass}
+                placeholder="Account name"
+                value={accountForm.name}
+                onChange={(e) => setAccountForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
+              <select
+                className={selectClass}
+                value={accountForm.type}
+                onChange={(e) =>
+                  setAccountForm((prev) => ({
+                    ...prev,
+                    type: e.target.value as "CASH" | "BANK" | "CREDIT" | "WALLET",
+                  }))
+                }
+              >
+                <option value="CASH">CASH</option>
+                <option value="BANK">BANK</option>
+                <option value="CREDIT">CREDIT</option>
+                <option value="WALLET">WALLET</option>
+              </select>
               <button onClick={createAccount} className={primaryButtonClass}>
                 Add
               </button>
-          </div>
+            </div>
             {accountFormError && <p className="mt-2 text-sm text-rose-700">{accountFormError}</p>}
             <ul className="mt-3 space-y-2">
-            {accounts.map((acc) => (
+              {accounts.map((acc) => (
                 <li key={acc.id} className="rounded-md border border-slate-200 p-2">
-                {editingAccountId === acc.id ? (
+                  {editingAccountId === acc.id ? (
                     <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                       <input className={inputClass} value={editingAccountName} onChange={(e) => setEditingAccountName(e.target.value)} />
-                    <select
+                      <select
                         className={selectClass}
-                      value={editingAccountType}
-                      onChange={(e) =>
-                        setEditingAccountType(e.target.value as "CASH" | "BANK" | "CREDIT" | "WALLET")
-                      }
-                    >
-                      <option value="CASH">CASH</option>
-                      <option value="BANK">BANK</option>
-                      <option value="CREDIT">CREDIT</option>
-                      <option value="WALLET">WALLET</option>
-                    </select>
+                        value={editingAccountType}
+                        onChange={(e) =>
+                          setEditingAccountType(e.target.value as "CASH" | "BANK" | "CREDIT" | "WALLET")
+                        }
+                      >
+                        <option value="CASH">CASH</option>
+                        <option value="BANK">BANK</option>
+                        <option value="CREDIT">CREDIT</option>
+                        <option value="WALLET">WALLET</option>
+                      </select>
                       <div className="flex gap-2">
                         <button onClick={() => saveAccount(acc)} className={primaryButtonClass}>Save</button>
                         <button onClick={() => setEditingAccountId(null)} className={subtleButtonClass}>Cancel</button>
                       </div>
                     </div>
-                ) : (
+                  ) : (
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm text-slate-800">
                         <strong>{acc.name}</strong> <span className="ml-1 text-slate-500">{acc.type || "BANK"}</span>
@@ -949,61 +949,61 @@ export default function TransactionsPage() {
                         <button onClick={() => deleteAccount(acc)} className={dangerButtonClass}>Delete</button>
                       </div>
                     </div>
-                )}
-              </li>
-            ))}
-          </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
           </section>
 
           <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="text-base font-semibold text-slate-900">Manage Categories</h3>
             <div className="mt-3 grid gap-2 sm:grid-cols-4">
-            <input
-              className={inputClass}
-              placeholder="Category name"
-              value={categoryForm.name}
-              onChange={(e) => setCategoryForm((prev) => ({ ...prev, name: e.target.value }))}
-            />
-            <select
-              className={selectClass}
-              value={categoryForm.type}
-              onChange={(e) =>
-                setCategoryForm((prev) => ({ ...prev, type: e.target.value as "INCOME" | "EXPENSE" }))
-              }
-            >
-              <option value="EXPENSE">EXPENSE</option>
-              <option value="INCOME">INCOME</option>
-            </select>
-            <input
-              className="h-10 w-full rounded-md border border-slate-300 bg-white px-2"
-              type="color"
-              value={categoryForm.color}
-              onChange={(e) => setCategoryForm((prev) => ({ ...prev, color: e.target.value }))}
-              title="Category color"
-            />
+              <input
+                className={inputClass}
+                placeholder="Category name"
+                value={categoryForm.name}
+                onChange={(e) => setCategoryForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
+              <select
+                className={selectClass}
+                value={categoryForm.type}
+                onChange={(e) =>
+                  setCategoryForm((prev) => ({ ...prev, type: e.target.value as "INCOME" | "EXPENSE" }))
+                }
+              >
+                <option value="EXPENSE">EXPENSE</option>
+                <option value="INCOME">INCOME</option>
+              </select>
+              <input
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-2"
+                type="color"
+                value={categoryForm.color}
+                onChange={(e) => setCategoryForm((prev) => ({ ...prev, color: e.target.value }))}
+                title="Category color"
+              />
               <button onClick={createCategory} className={primaryButtonClass}>Add</button>
-          </div>
+            </div>
             {categoryFormError && <p className="mt-2 text-sm text-rose-700">{categoryFormError}</p>}
             <ul className="mt-3 space-y-2">
-            {categories.map((cat) => (
+              {categories.map((cat) => (
                 <li key={cat.id} className="rounded-md border border-slate-200 p-2">
-                {editingCategoryId === cat.id ? (
+                  {editingCategoryId === cat.id ? (
                     <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                       <input className={inputClass} value={editingCategoryName} onChange={(e) => setEditingCategoryName(e.target.value)} />
-                    <select
+                      <select
                         className={selectClass}
-                      value={editingCategoryType}
-                      onChange={(e) => setEditingCategoryType(e.target.value as "INCOME" | "EXPENSE")}
-                    >
-                      <option value="EXPENSE">EXPENSE</option>
-                      <option value="INCOME">INCOME</option>
-                    </select>
+                        value={editingCategoryType}
+                        onChange={(e) => setEditingCategoryType(e.target.value as "INCOME" | "EXPENSE")}
+                      >
+                        <option value="EXPENSE">EXPENSE</option>
+                        <option value="INCOME">INCOME</option>
+                      </select>
                       <div className="flex gap-2">
                         <button onClick={() => saveCategory(cat)} className={primaryButtonClass}>Save</button>
                         <button onClick={() => setEditingCategoryId(null)} className={subtleButtonClass}>Cancel</button>
                       </div>
                     </div>
-                ) : (
+                  ) : (
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm text-slate-800">
                         <strong>{cat.name}</strong> <span className="ml-1 text-slate-500">{cat.type}</span>
@@ -1013,85 +1013,85 @@ export default function TransactionsPage() {
                         <button onClick={() => deleteCategory(cat)} className={dangerButtonClass}>Delete</button>
                       </div>
                     </div>
-                )}
-              </li>
-            ))}
-          </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
           </section>
         </div>
         <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="text-base font-semibold text-slate-900">Create Transaction</h3>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             <label className="text-sm font-medium text-slate-700">
-            Amount
-            <input
-              className={`${inputClass} mt-1`}
-              value={createForm.amount}
-              onChange={(e) => setCreateForm((prev) => ({ ...prev, amount: e.target.value }))}
-            />
+              Amount
+              <input
+                className={`${inputClass} mt-1`}
+                value={createForm.amount}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, amount: e.target.value }))}
+              />
               {createErrors.amount && <div className="mt-1 text-xs text-rose-700">{createErrors.amount}</div>}
-          </label>
+            </label>
             <label className="text-sm font-medium text-slate-700">
-            Type
-            <select
-              className={`${selectClass} mt-1`}
-              value={createForm.type}
-              onChange={(e) => setCreateForm((prev) => ({ ...prev, type: e.target.value as "INCOME" | "EXPENSE" }))}
-            >
-              <option value="EXPENSE">Expense</option>
-              <option value="INCOME">Income</option>
-            </select>
-          </label>
+              Type
+              <select
+                className={`${selectClass} mt-1`}
+                value={createForm.type}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, type: e.target.value as "INCOME" | "EXPENSE" }))}
+              >
+                <option value="EXPENSE">Expense</option>
+                <option value="INCOME">Income</option>
+              </select>
+            </label>
             <label className="text-sm font-medium text-slate-700">
-            Date
-            <input
-              className={`${inputClass} mt-1`}
-              type="date"
-              value={createForm.date}
-              onChange={(e) => setCreateForm((prev) => ({ ...prev, date: e.target.value }))}
-            />
+              Date
+              <input
+                className={`${inputClass} mt-1`}
+                type="date"
+                value={createForm.date}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, date: e.target.value }))}
+              />
               {createErrors.date && <div className="mt-1 text-xs text-rose-700">{createErrors.date}</div>}
-          </label>
+            </label>
             <label className="text-sm font-medium text-slate-700">
-            Account
-            <select
-              className={`${selectClass} mt-1`}
-              value={createForm.bankAccountId}
-              onChange={(e) => setCreateForm((prev) => ({ ...prev, bankAccountId: e.target.value }))}
-            >
-              <option value="">Select</option>
-              {accounts.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.name}
-                </option>
-              ))}
-            </select>
+              Account
+              <select
+                className={`${selectClass} mt-1`}
+                value={createForm.bankAccountId}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, bankAccountId: e.target.value }))}
+              >
+                <option value="">Select</option>
+                {accounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.name}
+                  </option>
+                ))}
+              </select>
               {createErrors.bankAccountId && <div className="mt-1 text-xs text-rose-700">{createErrors.bankAccountId}</div>}
-          </label>
+            </label>
             <label className="text-sm font-medium text-slate-700">
-            Category
-            <select
-              className={`${selectClass} mt-1`}
-              value={createForm.categoryId}
-              onChange={(e) => setCreateForm((prev) => ({ ...prev, categoryId: e.target.value }))}
-            >
-              <option value="">None</option>
-              {filteredCategories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </label>
+              Category
+              <select
+                className={`${selectClass} mt-1`}
+                value={createForm.categoryId}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, categoryId: e.target.value }))}
+              >
+                <option value="">None</option>
+                {filteredCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="text-sm font-medium text-slate-700">
-            Note
-            <input
-              className={`${inputClass} mt-1`}
-              value={createForm.note}
-              onChange={(e) => setCreateForm((prev) => ({ ...prev, note: e.target.value }))}
-            />
-          </label>
-        </div>
+              Note
+              <input
+                className={`${inputClass} mt-1`}
+                value={createForm.note}
+                onChange={(e) => setCreateForm((prev) => ({ ...prev, note: e.target.value }))}
+              />
+            </label>
+          </div>
           <button onClick={createTransaction} disabled={mutationBusy} className={`${primaryButtonClass} mt-4`}>
             {mutationBusy ? "Saving..." : "Add Transaction"}
           </button>
@@ -1103,13 +1103,13 @@ export default function TransactionsPage() {
         {!loading && analytics && (
           <>
             <div className="mb-6 grid gap-3 md:grid-cols-3">
-            {summaryCards?.map((card) => (
+              {summaryCards?.map((card) => (
                 <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="text-xs uppercase tracking-wide text-slate-500">{card.label}</div>
-                <div style={{ fontSize: 20, fontWeight: 600, color: card.color }}>{card.value}</div>
-              </div>
-            ))}
-          </div>
+                  <div style={{ fontSize: 20, fontWeight: 600, color: card.color }}>{card.value}</div>
+                </div>
+              ))}
+            </div>
 
             {trends && (
               <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1134,118 +1134,118 @@ export default function TransactionsPage() {
 
             <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="text-base font-semibold text-slate-900">Income vs Expense (Last {analytics.months} months)</h3>
-            <BarChart series={analytics.series} />
-          </div>
+              <BarChart series={analytics.series} />
+            </div>
 
             <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="text-base font-semibold text-slate-900">Net Trend</h3>
-            <NetLineChart series={analytics.series} />
-          </div>
+              <NetLineChart series={analytics.series} />
+            </div>
 
             <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="text-base font-semibold text-slate-900">Category Breakdown ({breakdownType})</h3>
-            <CategoryBreakdownChart items={breakdown?.items || []} />
-          </div>
+              <CategoryBreakdownChart items={breakdown?.items || []} />
+            </div>
           </>
         )}
 
         {!loading && (
           <>
             <h2 className="mb-3 text-lg font-semibold text-slate-900">Recent Transactions</h2>
-          {transactions.length === 0 ? (
+            {transactions.length === 0 ? (
               <p className="text-sm text-slate-600">No transactions yet.</p>
-          ) : (
+            ) : (
               <ul className="space-y-3">
-              {transactions.map((tx) => (
+                {transactions.map((tx) => (
                   <li key={tx.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  {editingId === tx.id ? (
+                    {editingId === tx.id ? (
                       <div className="rounded-md border border-slate-200 p-3">
                         <div className="grid gap-3 md:grid-cols-3">
                           <label className="text-sm font-medium text-slate-700">
-                          Amount
-                          <input
-                            className={`${inputClass} mt-1`}
-                            value={editForm.amount}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, amount: e.target.value }))}
-                          />
+                            Amount
+                            <input
+                              className={`${inputClass} mt-1`}
+                              value={editForm.amount}
+                              onChange={(e) => setEditForm((prev) => ({ ...prev, amount: e.target.value }))}
+                            />
                             {editErrors.amount && <div className="mt-1 text-xs text-rose-700">{editErrors.amount}</div>}
-                        </label>
+                          </label>
                           <label className="text-sm font-medium text-slate-700">
-                          Type
-                          <select
-                            className={`${selectClass} mt-1`}
-                            value={editForm.type}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, type: e.target.value as "INCOME" | "EXPENSE" }))
-                            }
-                          >
-                            <option value="EXPENSE">Expense</option>
-                            <option value="INCOME">Income</option>
-                          </select>
-                        </label>
+                            Type
+                            <select
+                              className={`${selectClass} mt-1`}
+                              value={editForm.type}
+                              onChange={(e) =>
+                                setEditForm((prev) => ({ ...prev, type: e.target.value as "INCOME" | "EXPENSE" }))
+                              }
+                            >
+                              <option value="EXPENSE">Expense</option>
+                              <option value="INCOME">Income</option>
+                            </select>
+                          </label>
                           <label className="text-sm font-medium text-slate-700">
-                          Date
-                          <input
-                            className={`${inputClass} mt-1`}
-                            type="date"
-                            value={editForm.date}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, date: e.target.value }))}
-                          />
+                            Date
+                            <input
+                              className={`${inputClass} mt-1`}
+                              type="date"
+                              value={editForm.date}
+                              onChange={(e) => setEditForm((prev) => ({ ...prev, date: e.target.value }))}
+                            />
                             {editErrors.date && <div className="mt-1 text-xs text-rose-700">{editErrors.date}</div>}
-                        </label>
+                          </label>
                           <label className="text-sm font-medium text-slate-700">
-                          Account
-                          <select
-                            className={`${selectClass} mt-1`}
-                            value={editForm.bankAccountId}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, bankAccountId: e.target.value }))}
-                          >
-                            <option value="">Select</option>
-                            {accounts.map((acc) => (
-                              <option key={acc.id} value={acc.id}>
-                                {acc.name}
-                              </option>
-                            ))}
-                          </select>
-                          {editErrors.bankAccountId && (
+                            Account
+                            <select
+                              className={`${selectClass} mt-1`}
+                              value={editForm.bankAccountId}
+                              onChange={(e) => setEditForm((prev) => ({ ...prev, bankAccountId: e.target.value }))}
+                            >
+                              <option value="">Select</option>
+                              {accounts.map((acc) => (
+                                <option key={acc.id} value={acc.id}>
+                                  {acc.name}
+                                </option>
+                              ))}
+                            </select>
+                            {editErrors.bankAccountId && (
                               <div className="mt-1 text-xs text-rose-700">{editErrors.bankAccountId}</div>
-                          )}
-                        </label>
+                            )}
+                          </label>
                           <label className="text-sm font-medium text-slate-700">
-                          Category
-                          <select
-                            className={`${selectClass} mt-1`}
-                            value={editForm.categoryId}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, categoryId: e.target.value }))}
-                          >
-                            <option value="">None</option>
-                            {filteredEditCategories.map((cat) => (
-                              <option key={cat.id} value={cat.id}>
-                                {cat.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                            Category
+                            <select
+                              className={`${selectClass} mt-1`}
+                              value={editForm.categoryId}
+                              onChange={(e) => setEditForm((prev) => ({ ...prev, categoryId: e.target.value }))}
+                            >
+                              <option value="">None</option>
+                              {filteredEditCategories.map((cat) => (
+                                <option key={cat.id} value={cat.id}>
+                                  {cat.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
                           <label className="text-sm font-medium text-slate-700">
-                          Note
-                          <input
-                            className={`${inputClass} mt-1`}
-                            value={editForm.note}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, note: e.target.value }))}
-                          />
-                        </label>
-                      </div>
+                            Note
+                            <input
+                              className={`${inputClass} mt-1`}
+                              value={editForm.note}
+                              onChange={(e) => setEditForm((prev) => ({ ...prev, note: e.target.value }))}
+                            />
+                          </label>
+                        </div>
                         <div className="mt-3 flex gap-2">
                           <button onClick={() => saveEdit(tx.id)} disabled={mutationBusy} className={primaryButtonClass}>
-                          Save
-                        </button>
+                            Save
+                          </button>
                           <button onClick={() => setEditingId(null)} disabled={mutationBusy} className={subtleButtonClass}>
-                          Cancel
-                        </button>
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <>
+                    ) : (
+                      <>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <strong className="text-slate-900">
                             {tx.type} {currency(Number(tx.amount))}
@@ -1260,26 +1260,26 @@ export default function TransactionsPage() {
                           </div>
                         </div>
                         <span className="mt-1 block text-sm text-slate-500">
-                        {new Date(tx.date).toLocaleDateString()} {tx.note ? `- ${tx.note}` : ""}{" "}
-                        {tx.bankAccount?.name ? `- ${tx.bankAccount.name}` : ""}
-                        {tx.category?.name ? `- ${tx.category.name}` : ""}
-                      </span>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+                          {new Date(tx.date).toLocaleDateString()} {tx.note ? `- ${tx.note}` : ""}{" "}
+                          {tx.bankAccount?.name ? `- ${tx.bankAccount.name}` : ""}
+                          {tx.category?.name ? `- ${tx.category.name}` : ""}
+                        </span>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <div className="mt-4 flex items-center gap-2">
               <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className={subtleButtonClass}>
-              Prev
-            </button>
+                Prev
+              </button>
               <span className="text-sm text-slate-600">Page {page}</span>
               <button onClick={() => setPage((p) => p + 1)} disabled={transactions.length < pageSize} className={subtleButtonClass}>
-              Next
-            </button>
-          </div>
+                Next
+              </button>
+            </div>
           </>
         )}
       </div>
