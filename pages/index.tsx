@@ -16,6 +16,15 @@ export default function Home() {
         <Link href="/transactions" className="rounded bg-emerald-600 px-3 py-2 hover:bg-emerald-500">
           Open Dashboard
         </Link>
+        <Link href="/budgets" className="rounded bg-white/10 px-3 py-2 hover:bg-white/20">
+          Budgets
+        </Link>
+        <Link href="/goals" className="rounded bg-white/10 px-3 py-2 hover:bg-white/20">
+          Goals
+        </Link>
+        <Link href="/shared-expenses" className="rounded bg-white/10 px-3 py-2 hover:bg-white/20">
+          Shared Expenses
+        </Link>
       </div>
     </main>
   );
