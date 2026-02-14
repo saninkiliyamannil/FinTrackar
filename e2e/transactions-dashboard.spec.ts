@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { setupCommonAuth } from "./helpers/mock-api";
 
 type MockState = {
   accounts: Array<{ id: string; name: string; type: string }>;
@@ -35,17 +36,7 @@ async function setupMockApi(page: Page) {
     ],
   };
 
-  await page.route("**/api/auth/session", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        data: { user: { id: "user-1", email: "user@example.com" } },
-        error: null,
-        code: "OK",
-      }),
-    });
-  });
+  await setupCommonAuth(page);
 
   await page.route("**/api/transactions**", async (route) => {
     const request = route.request();
@@ -487,4 +478,93 @@ test("transactions dashboard supports edit and delete transaction", async ({ pag
   await updatedRow.getByRole("button", { name: "Delete" }).click();
 
   await expect(page.locator("li", { hasText: "EXPENSE $99.00" })).toHaveCount(0);
+});
+
+test("transactions dashboard shows empty state for filtered page with no items", async ({ page }) => {
+  await setupMockApi(page);
+
+  await page.route("**/api/transactions**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: { page: 2, pageSize: 10, total: 11, items: [] },
+        error: null,
+        code: "OK",
+      }),
+    });
+  });
+
+  await page.goto("/transactions");
+  await expect(page.getByText("No transactions yet.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Next" })).toBeDisabled();
+});
+
+test("transactions dashboard preserves type filter while paginating", async ({ page }) => {
+  await setupMockApi(page);
+  const txRequests: string[] = [];
+
+  await page.route("**/api/transactions**", async (route) => {
+    const url = route.request().url();
+    txRequests.push(url);
+    const parsed = new URL(url);
+    const pageParam = Number(parsed.searchParams.get("page") || "1");
+    const items =
+      pageParam === 1
+        ? Array.from({ length: 10 }).map((_, idx) => ({
+            id: `tx-page1-${idx + 1}`,
+            amount: 20 + idx,
+            type: "EXPENSE",
+            note: null,
+            date: "2026-02-01T00:00:00.000Z",
+            bankAccountId: "acc-1",
+            categoryId: "cat-1",
+            bankAccount: { id: "acc-1", name: "Main" },
+            category: { id: "cat-1", name: "Food" },
+          }))
+        : [
+            {
+              id: "tx-page2-1",
+              amount: 99,
+              type: "EXPENSE",
+              note: "Page 2",
+              date: "2026-02-02T00:00:00.000Z",
+              bankAccountId: "acc-1",
+              categoryId: "cat-1",
+              bankAccount: { id: "acc-1", name: "Main" },
+              category: { id: "cat-1", name: "Food" },
+            },
+          ];
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          page: pageParam,
+          pageSize: 10,
+          total: 11,
+          items,
+        },
+        error: null,
+        code: "OK",
+      }),
+    });
+  });
+
+  await page.goto("/transactions");
+  await page.locator('select[aria-label="Type"]').first().selectOption("EXPENSE");
+  await page.getByRole("button", { name: "Next" }).click();
+
+  expect(
+    txRequests.some((url) => {
+      const parsed = new URL(url);
+      return (
+        parsed.searchParams.get("page") === "2" &&
+        parsed.searchParams.get("pageSize") === "10" &&
+        parsed.searchParams.get("type") === "EXPENSE"
+      );
+    })
+  ).toBe(true);
+  await expect(page.getByText("Page 2", { exact: true })).toBeVisible();
 });

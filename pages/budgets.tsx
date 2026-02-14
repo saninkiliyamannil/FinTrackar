@@ -122,20 +122,28 @@ export default function BudgetsPage() {
     }
   }
 
-  if (status === "loading") return <p className="p-6">Loading session...</p>;
+  const primaryButtonClass =
+    "inline-flex items-center justify-center rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60";
+
+  if (status === "loading") {
+    return <p className="mx-auto max-w-6xl px-4 py-8 text-sm text-slate-600">Loading session...</p>;
+  }
   if (status !== "authenticated" || !user) {
     return (
-      <main className="p-6">
-        <p className="mb-3">You must be signed in.</p>
-        <button className="rounded bg-slate-900 px-3 py-2 text-white" onClick={login}>
-          Sign in
-        </button>
-      </main>
+      <div className="mx-auto max-w-3xl px-4 py-12">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 className="text-xl font-semibold text-slate-900">Sign in required</h1>
+          <p className="mt-2 text-sm text-slate-600">You must be signed in to view budgets.</p>
+          <button onClick={login} className={`${primaryButtonClass} mt-5`}>
+            Sign in
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white p-6">
       <div className="mx-auto max-w-5xl">
         <h1 className="mb-2 text-2xl font-semibold text-slate-900">Budgets</h1>
         <AppNav />
