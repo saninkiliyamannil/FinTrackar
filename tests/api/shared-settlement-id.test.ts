@@ -16,6 +16,10 @@ const { prismaMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
+const { checkRateLimitMock } = vi.hoisted(() => ({
+  checkRateLimitMock: vi.fn(() => ({ allowed: true })),
+}));
+vi.mock("@/lib/api/rate-limit", () => ({ checkRateLimit: checkRateLimitMock }));
 
 import { sharedSettlementByIdHandler } from "../../pages/api/shared-settlements/[id]";
 
@@ -59,6 +63,33 @@ describe("/api/shared-settlements/[id]", () => {
     expect(res._getJSONData()).toMatchObject({ code: "OK", data: { id: "s1", status: "SETTLED" } });
   });
 
+  it("PATCH returns 429 when rate limited", async () => {
+    checkRateLimitMock.mockReturnValueOnce({ allowed: false });
+    prismaMock.sharedSettlement.findUnique.mockResolvedValueOnce({
+      id: "s1",
+      groupId: "g1",
+      amount: 25,
+      status: "PROPOSED",
+    });
+    prismaMock.sharedGroupMember.findFirst.mockResolvedValueOnce({ id: "m-owner", role: "OWNER" });
+
+    const { req, res } = createMocks({
+      method: "PATCH",
+      query: { id: "s1" },
+      body: { status: "SETTLED" },
+    });
+    (req as any).auth = { userId: "u1", email: "u@example.com" };
+
+    await sharedSettlementByIdHandler(req as any, res as unknown as NextApiResponse);
+
+    expect(prismaMock.sharedSettlement.update).not.toHaveBeenCalled();
+    expect(res._getStatusCode()).toBe(429);
+    expect(res._getJSONData()).toMatchObject({
+      code: "ERROR",
+      error: { code: "RATE_LIMITED", message: "Too many requests" },
+    });
+  });
+
   it("PATCH rejects invalid status payload", async () => {
     prismaMock.sharedSettlement.findUnique.mockResolvedValueOnce({
       id: "s1",
@@ -82,6 +113,32 @@ describe("/api/shared-settlements/[id]", () => {
     expect(res._getJSONData()).toMatchObject({
       code: "ERROR",
       error: { code: "VALIDATION_ERROR", message: "Invalid payload" },
+    });
+  });
+
+  it("PATCH returns 404 when caller is not a group member", async () => {
+    prismaMock.sharedSettlement.findUnique.mockResolvedValueOnce({
+      id: "s1",
+      groupId: "g1",
+      amount: 25,
+      status: "PROPOSED",
+    });
+    prismaMock.sharedGroupMember.findFirst.mockResolvedValueOnce(null);
+
+    const { req, res } = createMocks({
+      method: "PATCH",
+      query: { id: "s1" },
+      body: { status: "SETTLED" },
+    });
+    (req as any).auth = { userId: "outsider", email: "outsider@example.com" };
+
+    await sharedSettlementByIdHandler(req as any, res as unknown as NextApiResponse);
+
+    expect(prismaMock.sharedSettlement.update).not.toHaveBeenCalled();
+    expect(res._getStatusCode()).toBe(404);
+    expect(res._getJSONData()).toMatchObject({
+      code: "ERROR",
+      error: { code: "NOT_FOUND", message: "Settlement not found" },
     });
   });
 });

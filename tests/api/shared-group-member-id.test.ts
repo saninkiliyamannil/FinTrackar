@@ -14,6 +14,10 @@ const { prismaMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
+const { checkRateLimitMock } = vi.hoisted(() => ({
+  checkRateLimitMock: vi.fn(() => ({ allowed: true })),
+}));
+vi.mock("@/lib/api/rate-limit", () => ({ checkRateLimit: checkRateLimitMock }));
 
 import { sharedGroupMemberByIdHandler } from "../../pages/api/shared-groups/[id]/members/[memberId]";
 
@@ -47,6 +51,28 @@ describe("/api/shared-groups/[id]/members/[memberId]", () => {
     });
   });
 
+  it("PATCH rejects non-owner editing another member", async () => {
+    prismaMock.sharedGroupMember.findFirst
+      .mockResolvedValueOnce({ id: "m-member", role: "MEMBER", userId: "u-member" })
+      .mockResolvedValueOnce({ id: "m-owner", role: "OWNER", userId: "u-owner" });
+
+    const { req, res } = createMocks({
+      method: "PATCH",
+      query: { id: "g1", memberId: "m-owner" },
+      body: { displayName: "Owner Updated" },
+    });
+    (req as any).auth = { userId: "u-member", email: "member@example.com" };
+
+    await sharedGroupMemberByIdHandler(req as any, res as unknown as NextApiResponse);
+
+    expect(prismaMock.sharedGroupMember.update).not.toHaveBeenCalled();
+    expect(res._getStatusCode()).toBe(403);
+    expect(res._getJSONData()).toMatchObject({
+      code: "ERROR",
+      error: { code: "FORBIDDEN", message: "Only owners can edit other members" },
+    });
+  });
+
   it("DELETE rejects removing the last owner", async () => {
     prismaMock.sharedGroupMember.findFirst
       .mockResolvedValueOnce({ id: "m-owner", role: "OWNER", userId: "u-owner" })
@@ -66,6 +92,28 @@ describe("/api/shared-groups/[id]/members/[memberId]", () => {
     expect(res._getJSONData()).toMatchObject({
       code: "ERROR",
       error: { code: "VALIDATION_ERROR", message: "Cannot remove the last owner" },
+    });
+  });
+
+  it("DELETE returns 429 when rate limited", async () => {
+    checkRateLimitMock.mockReturnValueOnce({ allowed: false });
+    prismaMock.sharedGroupMember.findFirst
+      .mockResolvedValueOnce({ id: "m-owner", role: "OWNER", userId: "u-owner" })
+      .mockResolvedValueOnce({ id: "m-member", role: "MEMBER", userId: "u-member" });
+
+    const { req, res } = createMocks({
+      method: "DELETE",
+      query: { id: "g1", memberId: "m-member" },
+    });
+    (req as any).auth = { userId: "u-owner", email: "owner@example.com" };
+
+    await sharedGroupMemberByIdHandler(req as any, res as unknown as NextApiResponse);
+
+    expect(prismaMock.sharedGroupMember.delete).not.toHaveBeenCalled();
+    expect(res._getStatusCode()).toBe(429);
+    expect(res._getJSONData()).toMatchObject({
+      code: "ERROR",
+      error: { code: "RATE_LIMITED", message: "Too many requests" },
     });
   });
 });
