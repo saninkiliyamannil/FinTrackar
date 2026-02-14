@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/client";
 import { AppNav } from "@/components/layout/app-nav";
+import { Card } from "@/components/ui/card";
+import { FormRow } from "@/components/ui/form-row";
+import { SectionHeader } from "@/components/ui/section-header";
 
 type Envelope<T> = {
   data: T | null;
@@ -336,35 +339,36 @@ export default function SharedExpensesPage() {
   const selectedGroup = sharedGroups.find((group) => group.id === selectedGroupId) || null;
 
   const primaryButtonClass =
-    "inline-flex items-center justify-center rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60";
+    "btn btn-primary";
 
   if (status === "loading") {
-    return <p className="mx-auto max-w-6xl px-4 py-8 text-sm text-slate-600">Loading session...</p>;
+    return <p className="app-container px-4 py-8 text-sm text-slate-600">Loading session...</p>;
   }
   if (status !== "authenticated" || !user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-12">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="app-container max-w-3xl px-4 py-12">
+        <Card className="p-6" as="div">
           <h1 className="text-xl font-semibold text-slate-900">Sign in required</h1>
           <p className="mt-2 text-sm text-slate-600">You must be signed in to view shared expenses.</p>
           <button onClick={login} className={`${primaryButtonClass} mt-5`}>
             Sign in
           </button>
-        </div>
+        </Card>
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white p-6">
-      <div className="mx-auto max-w-6xl">
-        <h1 className="mb-2 text-2xl font-semibold text-slate-900">Shared Expenses</h1>
+    <main className="app-shell">
+      <div className="app-container">
+        <h1 className="page-title mb-2">Shared Expenses</h1>
         <AppNav />
 
-        <section className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-2 md:grid-cols-4">
+        <Card className="mb-4 p-4">
+          <SectionHeader title="Groups" description="Create, join, and settle group balances." />
+          <FormRow columnsClass="sm:grid-cols-2 lg:grid-cols-4">
             <select
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="field"
               value={selectedGroupId}
               onChange={(event) => setSelectedGroupId(event.target.value)}
             >
@@ -375,67 +379,67 @@ export default function SharedExpensesPage() {
                 </option>
               ))}
             </select>
-            <input className="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="New group name" value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} />
-            <button className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white" onClick={createGroup}>
+            <input className="field" placeholder="New group name" value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} />
+            <button className={primaryButtonClass} onClick={createGroup}>
               Create Group
             </button>
-            <button className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700" onClick={settleAll}>
+            <button className="btn btn-subtle" onClick={settleAll}>
               Settle All
             </button>
-          </div>
-          <div className="mt-2 grid gap-2 md:grid-cols-3">
-            <input className="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Invite code" value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
-            <button className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700" onClick={joinGroup}>
+          </FormRow>
+          <FormRow className="mt-2" columnsClass="sm:grid-cols-2 lg:grid-cols-3">
+            <input className="field" placeholder="Invite code" value={joinCode} onChange={(event) => setJoinCode(event.target.value)} />
+            <button className="btn btn-subtle" onClick={joinGroup}>
               Join Group
             </button>
             <p className="text-xs text-slate-500">
               Invite code: {selectedGroup?.inviteCode || "-"}
             </p>
-          </div>
-        </section>
+          </FormRow>
+        </Card>
 
-        <section className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-2 text-base font-semibold text-slate-900">Members</h2>
+        <Card className="mb-4 p-4">
+          <SectionHeader title="Members" />
           <div className="space-y-2">
             {(selectedGroup?.members || []).length === 0 && <p className="text-sm text-slate-600">No members in selected group.</p>}
             {(selectedGroup?.members || []).map((member) => (
               <div key={member.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 p-2">
                 <p className="text-sm text-slate-800">{member.displayName}</p>
                 <div className="flex gap-2">
-                  <select className="rounded-md border border-slate-300 px-2 py-1 text-xs" value={member.role} onChange={(event) => void updateMemberRole(member.id, event.target.value as "OWNER" | "MEMBER")}>
+                  <select className="field min-w-[7.5rem] py-1 text-xs" value={member.role} onChange={(event) => void updateMemberRole(member.id, event.target.value as "OWNER" | "MEMBER")}>
                     <option value="OWNER">OWNER</option>
                     <option value="MEMBER">MEMBER</option>
                   </select>
-                  <button className="rounded-md border border-rose-300 px-2 py-1 text-xs text-rose-700" onClick={() => void removeMember(member.id)}>
+                  <button className="btn btn-danger text-xs" onClick={() => void removeMember(member.id)}>
                     Remove
                   </button>
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </Card>
 
-        <section className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-2 text-base font-semibold text-slate-900">Create Shared Expense</h2>
-          <div className="grid gap-2 lg:grid-cols-3">
-            <input className="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
-            <input className="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Total amount" value={totalAmount} onChange={(event) => setTotalAmount(event.target.value)} />
-            <input type="date" className="rounded-md border border-slate-300 px-3 py-2 text-sm" value={date} onChange={(event) => setDate(event.target.value)} />
-            <select className="rounded-md border border-slate-300 px-3 py-2 text-sm" value={splitMethod} onChange={(event) => setSplitMethod(event.target.value as "EQUAL" | "CUSTOM")}>
+        <Card className="mb-4 p-4">
+          <SectionHeader title="Create Shared Expense" />
+          <FormRow columnsClass="sm:grid-cols-2 lg:grid-cols-3">
+            <input className="field" placeholder="Title" value={title} onChange={(event) => setTitle(event.target.value)} />
+            <input className="field" placeholder="Total amount" value={totalAmount} onChange={(event) => setTotalAmount(event.target.value)} />
+            <input type="date" className="field" value={date} onChange={(event) => setDate(event.target.value)} />
+            <select className="field" value={splitMethod} onChange={(event) => setSplitMethod(event.target.value as "EQUAL" | "CUSTOM")}>
               <option value="EQUAL">Equal split</option>
               <option value="CUSTOM">Custom split</option>
             </select>
-            <input className="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Participants (comma separated)" value={participantsText} onChange={(event) => setParticipantsText(event.target.value)} />
-            <button className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white" onClick={createSharedExpense}>
+            <input className="field" placeholder="Participants (comma separated)" value={participantsText} onChange={(event) => setParticipantsText(event.target.value)} />
+            <button className={primaryButtonClass} onClick={createSharedExpense}>
               Add Expense
             </button>
-          </div>
-          <textarea className="mt-2 min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Note (optional)" value={note} onChange={(event) => setNote(event.target.value)} />
-        </section>
+          </FormRow>
+          <textarea className="field mt-2 min-h-20 w-full" placeholder="Note (optional)" value={note} onChange={(event) => setNote(event.target.value)} />
+        </Card>
 
         <section className="mb-4 grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="mb-2 text-base font-semibold text-slate-900">Settlement Suggestions</h2>
+          <Card className="p-4" as="div">
+            <SectionHeader title="Settlement Suggestions" />
             {(settlements?.suggestions || []).length === 0 && <p className="text-sm text-slate-600">No suggestions.</p>}
             <div className="space-y-2">
               {(settlements?.suggestions || []).map((suggestion, idx) => (
@@ -443,16 +447,16 @@ export default function SharedExpensesPage() {
                   <p className="text-xs text-slate-700">
                     {suggestion.fromDisplayName} pays {suggestion.toDisplayName} {currency(suggestion.amount)}
                   </p>
-                  <button className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700" onClick={() => void createSettlement(suggestion)}>
+                  <button className="btn btn-subtle text-xs" onClick={() => void createSettlement(suggestion)}>
                     Create
                   </button>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="mb-2 text-base font-semibold text-slate-900">Settlement History</h2>
+          <Card className="p-4" as="div">
+            <SectionHeader title="Settlement History" />
             {(settlements?.settlements || []).length === 0 && <p className="text-sm text-slate-600">No settlement records.</p>}
             <div className="space-y-2">
               {(settlements?.settlements || []).map((record) => (
@@ -463,12 +467,12 @@ export default function SharedExpensesPage() {
                   <div className="mt-1 flex gap-2">
                     <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{record.status}</span>
                     {record.status !== "SETTLED" && (
-                      <button className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700" onClick={() => void updateSettlementStatus(record.id, "SETTLED")}>
+                      <button className="btn btn-subtle text-xs" onClick={() => void updateSettlementStatus(record.id, "SETTLED")}>
                         Mark Settled
                       </button>
                     )}
                     {record.status !== "CANCELED" && (
-                      <button className="rounded-md border border-rose-300 px-2 py-1 text-xs text-rose-700" onClick={() => void updateSettlementStatus(record.id, "CANCELED")}>
+                      <button className="btn btn-danger text-xs" onClick={() => void updateSettlementStatus(record.id, "CANCELED")}>
                         Cancel
                       </button>
                     )}
@@ -476,11 +480,11 @@ export default function SharedExpensesPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-2 text-base font-semibold text-slate-900">Expenses</h2>
+        <Card className="p-4">
+          <SectionHeader title="Expenses" />
           <p className="mb-2 text-sm text-slate-600">
             Total: {currency(sharedExpenses?.summary.totalAmount ?? 0)} | Settled participants:{" "}
             {sharedExpenses?.summary.settledParticipants ?? 0}/{sharedExpenses?.summary.totalParticipants ?? 0}
@@ -500,10 +504,10 @@ export default function SharedExpensesPage() {
                     <button
                       key={participant.id}
                       onClick={() => void toggleParticipantSettled(expense, participant.id)}
-                      className={`rounded-md border px-2 py-1 text-xs ${
+                      className={`btn border px-2 py-1 text-xs ${
                         participant.isSettled
                           ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                          : "border-slate-300 bg-white text-slate-700"
+                          : "border-[#c6b9a8] bg-[#fffaf1] text-slate-700"
                       }`}
                     >
                       {participant.participantName}: {currency(participant.shareAmount)} {participant.isSettled ? "(Settled)" : "(Open)"}
@@ -513,7 +517,7 @@ export default function SharedExpensesPage() {
               </div>
             ))}
           </div>
-        </section>
+        </Card>
         {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
       </div>
     </main>

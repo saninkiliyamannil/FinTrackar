@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/client";
 import { AppNav } from "@/components/layout/app-nav";
+import { Card } from "@/components/ui/card";
+import { FormRow } from "@/components/ui/form-row";
+import { SectionHeader } from "@/components/ui/section-header";
 
 type Envelope<T> = {
   data: T | null;
@@ -115,46 +118,48 @@ export default function GoalsPage() {
   }
 
   const primaryButtonClass =
-    "inline-flex items-center justify-center rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60";
+    "btn btn-primary";
 
   if (status === "loading") {
-    return <p className="mx-auto max-w-6xl px-4 py-8 text-sm text-slate-600">Loading session...</p>;
+    return <p className="app-container px-4 py-8 text-sm text-slate-600">Loading session...</p>;
   }
   if (status !== "authenticated" || !user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-12">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="app-container max-w-3xl px-4 py-12">
+        <Card className="p-6" as="div">
           <h1 className="text-xl font-semibold text-slate-900">Sign in required</h1>
           <p className="mt-2 text-sm text-slate-600">You must be signed in to view goals.</p>
           <button onClick={login} className={`${primaryButtonClass} mt-5`}>
             Sign in
           </button>
-        </div>
+        </Card>
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white p-6">
-      <div className="mx-auto max-w-5xl">
-        <h1 className="mb-2 text-2xl font-semibold text-slate-900">Goals</h1>
+    <main className="app-shell">
+      <div className="app-container max-w-5xl">
+        <h1 className="page-title mb-2">Goals</h1>
         <AppNav />
 
-        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <input className="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Goal name" value={name} onChange={(e) => setName(e.target.value)} />
-            <input className="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Target amount" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} />
-            <input className="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Current amount" value={currentAmount} onChange={(e) => setCurrentAmount(e.target.value)} />
-            <input type="date" className="rounded-md border border-slate-300 px-3 py-2 text-sm" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
-            <input className="rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-            <button className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white" onClick={createGoal}>
+        <Card className="mb-4 p-4">
+          <SectionHeader title="Create Goal" description="Track progress toward savings targets." />
+          <FormRow>
+            <input className="field" placeholder="Goal name" value={name} onChange={(e) => setName(e.target.value)} />
+            <input className="field" placeholder="Target amount" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)} />
+            <input className="field" placeholder="Current amount" value={currentAmount} onChange={(e) => setCurrentAmount(e.target.value)} />
+            <input type="date" className="field" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+            <input className="field" placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+            <button className={primaryButtonClass} onClick={createGoal}>
               Add Goal
             </button>
-          </div>
+          </FormRow>
           {error && <p className="mt-2 text-sm text-rose-700">{error}</p>}
-        </div>
+        </Card>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <Card className="p-4">
+          <SectionHeader title="Overview" />
           <div className="mb-2 text-sm text-slate-600">
             Total Target: {currency(goals?.summary.totalTarget ?? 0)} | Current: {currency(goals?.summary.totalCurrent ?? 0)} | Completed: {goals?.summary.completed ?? 0}/{goals?.summary.total ?? 0}
           </div>
@@ -164,7 +169,7 @@ export default function GoalsPage() {
               <div key={goal.id} className="rounded-md border border-slate-200 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium text-slate-900">{goal.name}</p>
-                  <button className="rounded-md border border-rose-300 px-2 py-1 text-xs text-rose-700" onClick={() => void deleteGoal(goal.id)}>
+                  <button className="btn btn-danger text-xs" onClick={() => void deleteGoal(goal.id)}>
                     Delete
                   </button>
                 </div>
@@ -175,10 +180,10 @@ export default function GoalsPage() {
                   <div className="h-2 rounded bg-sky-500" style={{ width: `${Math.min(100, Math.max(4, goal.progressRatio * 100))}%` }} />
                 </div>
                 <div className="mt-2 flex gap-2">
-                  <button className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700" onClick={() => void addProgress(goal, 50)}>
+                  <button className="btn btn-subtle text-xs" onClick={() => void addProgress(goal, 50)}>
                     +50
                   </button>
-                  <button className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700" onClick={() => void addProgress(goal, 100)}>
+                  <button className="btn btn-subtle text-xs" onClick={() => void addProgress(goal, 100)}>
                     +100
                   </button>
                   <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{goal.status}</span>
@@ -186,7 +191,7 @@ export default function GoalsPage() {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       </div>
     </main>
   );

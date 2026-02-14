@@ -1,6 +1,9 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
+import { Card } from "@/components/ui/card";
+import { FormRow } from "@/components/ui/form-row";
+import { SectionHeader } from "@/components/ui/section-header";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const strongPasswordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,72}$/;
@@ -59,37 +62,35 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto grid min-h-screen w-full max-w-5xl items-center gap-10 px-6 py-10 md:grid-cols-2">
-        <section className="space-y-5">
-          <p className="inline-block rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-200">
-            FinTrackar
+    <main className="app-shell">
+      <div className="app-container grid items-start gap-6 py-6 md:grid-cols-2">
+        <Card className="p-6" as="div">
+          <p className="inline-block rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-teal-800">
+            FinTrack
           </p>
-          <h1 className="text-4xl font-extrabold leading-tight">Create your account</h1>
-          <p className="text-sm text-slate-300">
+          <h1 className="mt-4 text-4xl font-extrabold leading-tight text-slate-900">Create your account</h1>
+          <p className="mt-3 text-sm text-slate-600">
             Start tracking spending, income, and budgets with a secure local account.
           </p>
-        </section>
+        </Card>
 
-        <form
-          onSubmit={onSubmit}
-          className="w-full rounded-2xl border border-slate-700 bg-slate-900/80 p-6 shadow-2xl shadow-black/40"
-        >
-          <h2 className="mb-5 text-2xl font-bold">Sign up</h2>
-          <div className="space-y-4">
-            <label className="block text-sm text-slate-300">
-              Name (optional)
+        <Card className="p-6" as="div">
+          <SectionHeader title="Sign up" />
+          <form onSubmit={onSubmit}>
+            <FormRow columnsClass="grid-cols-1">
+            <label className="block text-sm text-slate-700">
+              <span className="text-slate-700">Name (optional)</span>
               <input
                 type="text"
                 placeholder="Jane Doe"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 autoComplete="name"
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none ring-emerald-400 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-2"
+                className={`field mt-1 ${error ? "field-error" : ""}`}
               />
             </label>
-            <label className="block text-sm text-slate-300">
-              Email
+            <label className="block text-sm text-slate-700">
+              <span className="text-slate-700">Email</span>
               <input
                 type="email"
                 placeholder="you@example.com"
@@ -97,11 +98,11 @@ export default function SignupPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
                 required
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none ring-emerald-400 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-2"
+                className={`field mt-1 ${error ? "field-error" : ""}`}
               />
             </label>
-            <label className="block text-sm text-slate-300">
-              Password
+            <label className="block text-sm text-slate-700">
+              <span className="text-slate-700">Password</span>
               <input
                 type="password"
                 placeholder="8+ chars with letters and numbers"
@@ -109,11 +110,11 @@ export default function SignupPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
                 required
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none ring-emerald-400 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-2"
+                className={`field mt-1 ${error ? "field-error" : ""}`}
               />
             </label>
-            <label className="block text-sm text-slate-300">
-              Confirm password
+            <label className="block text-sm text-slate-700">
+              <span className="text-slate-700">Confirm password</span>
               <input
                 type="password"
                 placeholder="Repeat your password"
@@ -121,28 +122,25 @@ export default function SignupPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
                 required
-                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none ring-emerald-400 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-2"
+                className={`field mt-1 ${error ? "field-error" : ""}`}
               />
             </label>
-          </div>
+            </FormRow>
 
-          {error ? <p className="mt-3 text-sm text-rose-400">{error}</p> : null}
+            {error ? <p className="text-error mt-3 text-sm">{error}</p> : null}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-5 w-full rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? "Creating account..." : "Create account"}
-          </button>
+            <button type="submit" disabled={loading} className="btn btn-primary mt-5 w-full">
+              {loading ? "Creating account..." : "Create account"}
+            </button>
 
-          <p className="mt-4 text-sm text-slate-300">
-            Already have an account?{" "}
-            <Link href="/login" className="font-semibold text-emerald-300 hover:text-emerald-200">
-              Login
-            </Link>
-          </p>
-        </form>
+            <p className="mt-4 text-sm text-slate-600">
+              Already have an account?{" "}
+              <Link href="/login" className="font-semibold text-teal-700 hover:text-teal-600">
+                Login
+              </Link>
+            </p>
+          </form>
+        </Card>
       </div>
     </main>
   );

@@ -1,7 +1,16 @@
-import type { HTMLAttributes } from "react";
+import { PropsWithChildren } from "react";
 
-type CardProps = HTMLAttributes<HTMLDivElement>;
+type CardProps = PropsWithChildren<{
+  className?: string;
+  as?: "section" | "div" | "li";
+}>;
 
-export function Card({ className = "", ...props }: CardProps) {
-  return <div className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${className}`} {...props} />;
+export function Card({ children, className = "", as = "section" }: CardProps) {
+  if (as === "div") {
+    return <div className={`panel motion-enter ${className}`.trim()}>{children}</div>;
+  }
+  if (as === "li") {
+    return <li className={`panel motion-enter ${className}`.trim()}>{children}</li>;
+  }
+  return <section className={`panel motion-enter ${className}`.trim()}>{children}</section>;
 }

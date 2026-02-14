@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth/client";
 import { AppNav } from "@/components/layout/app-nav";
+import { Card } from "@/components/ui/card";
+import { FormRow } from "@/components/ui/form-row";
+import { SectionHeader } from "@/components/ui/section-header";
 
 type Envelope<T> = {
   data: T | null;
@@ -761,41 +764,41 @@ export default function TransactionsPage() {
   }
 
   const inputClass =
-    "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200";
+    "field";
   const selectClass =
-    "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200";
+    "field";
   const primaryButtonClass =
-    "inline-flex items-center justify-center rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60";
+    "btn btn-primary";
   const subtleButtonClass =
-    "inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60";
+    "btn btn-subtle";
   const dangerButtonClass =
-    "inline-flex items-center justify-center rounded-md border border-rose-300 bg-white px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60";
+    "btn btn-danger";
 
   if (status === "loading") {
-    return <p className="mx-auto max-w-6xl px-4 py-8 text-sm text-slate-600">Loading session...</p>;
+    return <p className="app-container px-4 py-8 text-sm text-slate-600">Loading session...</p>;
   }
 
   if (status !== "authenticated" || !user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-12">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="app-container max-w-3xl px-4 py-12">
+        <Card className="p-6" as="div">
           <h1 className="text-xl font-semibold text-slate-900">Sign in required</h1>
           <p className="mt-2 text-sm text-slate-600">You must be signed in to view transactions.</p>
           <button onClick={login} className={`${primaryButtonClass} mt-5`}>
             Sign in
           </button>
-        </div>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-full bg-gradient-to-b from-slate-50 to-white px-4 py-6">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="app-shell">
+      <div className="app-container">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Transactions Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-500">Track accounts, categories, and transactions in one place.</p>
+            <h1 className="page-title">Transactions Dashboard</h1>
+            <p className="page-subtitle">Track accounts, categories, and transactions in one place.</p>
           </div>
           <button onClick={exportCsv} className={subtleButtonClass}>
             Export CSV
@@ -803,7 +806,9 @@ export default function TransactionsPage() {
         </div>
         <AppNav />
 
-        <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-5">
+        <Card className="mb-6 p-4">
+          <SectionHeader title="Filters" />
+          <FormRow columnsClass="sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <label className="text-sm font-medium text-slate-700">
             Months
             <select aria-label="Months" value={months} onChange={(e) => setMonths(Number(e.target.value))} className={`${selectClass} mt-1`}>
@@ -884,12 +889,13 @@ export default function TransactionsPage() {
               ))}
             </select>
           </label>
-        </div>
+          </FormRow>
+        </Card>
 
         <div className="mb-6 grid gap-4 lg:grid-cols-2">
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-base font-semibold text-slate-900">Manage Accounts</h3>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <Card className="p-4">
+            <SectionHeader title="Manage Accounts" />
+            <FormRow columnsClass="sm:grid-cols-3">
               <input
                 className={inputClass}
                 placeholder="Account name"
@@ -914,7 +920,7 @@ export default function TransactionsPage() {
               <button onClick={createAccount} className={primaryButtonClass}>
                 Add
               </button>
-            </div>
+            </FormRow>
             {accountFormError && <p className="mt-2 text-sm text-rose-700">{accountFormError}</p>}
             <ul className="mt-3 space-y-2">
               {accounts.map((acc) => (
@@ -953,11 +959,11 @@ export default function TransactionsPage() {
                 </li>
               ))}
             </ul>
-          </section>
+          </Card>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-base font-semibold text-slate-900">Manage Categories</h3>
-            <div className="mt-3 grid gap-2 sm:grid-cols-4">
+          <Card className="p-4">
+            <SectionHeader title="Manage Categories" />
+            <FormRow columnsClass="sm:grid-cols-4">
               <input
                 className={inputClass}
                 placeholder="Category name"
@@ -982,7 +988,7 @@ export default function TransactionsPage() {
                 title="Category color"
               />
               <button onClick={createCategory} className={primaryButtonClass}>Add</button>
-            </div>
+            </FormRow>
             {categoryFormError && <p className="mt-2 text-sm text-rose-700">{categoryFormError}</p>}
             <ul className="mt-3 space-y-2">
               {categories.map((cat) => (
@@ -1017,10 +1023,10 @@ export default function TransactionsPage() {
                 </li>
               ))}
             </ul>
-          </section>
+          </Card>
         </div>
-        <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">Create Transaction</h3>
+        <Card className="mb-6 p-4">
+          <SectionHeader title="Create Transaction" />
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             <label className="text-sm font-medium text-slate-700">
               Amount
@@ -1095,7 +1101,7 @@ export default function TransactionsPage() {
           <button onClick={createTransaction} disabled={mutationBusy} className={`${primaryButtonClass} mt-4`}>
             {mutationBusy ? "Saving..." : "Add Transaction"}
           </button>
-        </section>
+        </Card>
 
         {loading && <p className="text-sm text-slate-600">Loading dashboard...</p>}
         {error && <p className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
@@ -1104,23 +1110,23 @@ export default function TransactionsPage() {
           <>
             <div className="mb-6 grid gap-3 md:grid-cols-3">
               {summaryCards?.map((card) => (
-                <div key={card.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <Card key={card.label} className="p-4" as="div">
                   <div className="text-xs uppercase tracking-wide text-slate-500">{card.label}</div>
                   <div style={{ fontSize: 20, fontWeight: 600, color: card.color }}>{card.value}</div>
-                </div>
+                </Card>
               ))}
             </div>
 
             {trends && (
-              <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <Card className="mb-4 p-4" as="div">
                 <h3 className="text-base font-semibold text-slate-900">
                   Savings vs Expenses ({trendPeriod}, last {trends.range})
                 </h3>
                 <div className="mt-3 grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-md border border-slate-200 p-3">
+                  <div className="rounded-md border border-[var(--border-soft)] p-3">
                     <TrendBarChart points={trends.points} />
                   </div>
-                  <div className="rounded-md border border-slate-200 p-3">
+                  <div className="rounded-md border border-[var(--border-soft)] p-3">
                     <PieChart slices={savingsPieSlices} />
                     <div className="mt-2 text-xs text-slate-600">
                       <p>Total Income: {currency(trends.summary.totalIncome)}</p>
@@ -1129,23 +1135,23 @@ export default function TransactionsPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </Card>
             )}
 
-            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <Card className="mb-4 p-4" as="div">
               <h3 className="text-base font-semibold text-slate-900">Income vs Expense (Last {analytics.months} months)</h3>
               <BarChart series={analytics.series} />
-            </div>
+            </Card>
 
-            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <Card className="mb-4 p-4" as="div">
               <h3 className="text-base font-semibold text-slate-900">Net Trend</h3>
               <NetLineChart series={analytics.series} />
-            </div>
+            </Card>
 
-            <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <Card className="mb-6 p-4" as="div">
               <h3 className="text-base font-semibold text-slate-900">Category Breakdown ({breakdownType})</h3>
               <CategoryBreakdownChart items={breakdown?.items || []} />
-            </div>
+            </Card>
           </>
         )}
 
@@ -1157,7 +1163,7 @@ export default function TransactionsPage() {
             ) : (
               <ul className="space-y-3">
                 {transactions.map((tx) => (
-                  <li key={tx.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <Card key={tx.id} className="p-4" as="li">
                     {editingId === tx.id ? (
                       <div className="rounded-md border border-slate-200 p-3">
                         <div className="grid gap-3 md:grid-cols-3">
@@ -1266,7 +1272,7 @@ export default function TransactionsPage() {
                         </span>
                       </>
                     )}
-                  </li>
+                  </Card>
                 ))}
               </ul>
             )}
