@@ -40,14 +40,14 @@ async function setupMockApi(page: Page) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        data: { user: { id: "user-1", neonAuthId: "neon-1" } },
+        data: { user: { id: "user-1", email: "user@example.com" } },
         error: null,
         code: "OK",
       }),
     });
   });
 
-  await page.route("**/api/transactions", async (route) => {
+  await page.route("**/api/transactions**", async (route) => {
     const request = route.request();
     if (request.method() === "POST") {
       const body = request.postDataJSON() as any;
@@ -326,6 +326,119 @@ async function setupMockApi(page: Page) {
     });
   });
 
+  await page.route("**/api/analytics/trends**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          period: "monthly",
+          range: 12,
+          from: "2025-03-01T00:00:00.000Z",
+          to: "2026-03-01T00:00:00.000Z",
+          points: [
+            { key: "2025-12", label: "Dec 25", start: "2025-12-01T00:00:00.000Z", income: 1400, expense: 900, savings: 500 },
+            { key: "2026-01", label: "Jan 26", start: "2026-01-01T00:00:00.000Z", income: 1500, expense: 1000, savings: 500 },
+            { key: "2026-02", label: "Feb 26", start: "2026-02-01T00:00:00.000Z", income: 1600, expense: 1100, savings: 500 },
+          ],
+          summary: {
+            totalIncome: 4500,
+            totalExpense: 3000,
+            totalSavings: 1500,
+            averageIncome: 1500,
+            averageExpense: 1000,
+          },
+        },
+        error: null,
+        code: "OK",
+      }),
+    });
+  });
+
+  await page.route("**/api/budgets**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          month: 2,
+          year: 2026,
+          items: [],
+          summary: { totalBudget: 0, totalSpent: 0, totalRemaining: 0 },
+        },
+        error: null,
+        code: "OK",
+      }),
+    });
+  });
+
+  await page.route("**/api/goals", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          items: [],
+          summary: { totalTarget: 0, totalCurrent: 0, completed: 0, total: 0 },
+        },
+        error: null,
+        code: "OK",
+      }),
+    });
+  });
+
+  await page.route("**/api/shared-groups", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [
+          {
+            id: "g1",
+            name: "Roommates",
+            description: null,
+            inviteCode: "ROOM42",
+            isPersonal: false,
+            members: [{ id: "m1", userId: "user-1", displayName: "You", role: "OWNER" }],
+            _count: { expenses: 0, settlements: 0 },
+          },
+        ],
+        error: null,
+        code: "OK",
+      }),
+    });
+  });
+
+  await page.route("**/api/shared-expenses**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          page: 1,
+          pageSize: 20,
+          total: 0,
+          items: [],
+          summary: { totalAmount: 0, totalParticipants: 0, settledParticipants: 0 },
+        },
+        error: null,
+        code: "OK",
+      }),
+    });
+  });
+
+  await page.route("**/api/shared-groups/*/settlements", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: { suggestions: [], settlements: [] },
+        error: null,
+        code: "OK",
+      }),
+    });
+  });
+
   return state;
 }
 
@@ -336,18 +449,22 @@ test("transactions dashboard loads and supports create flows", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Transactions Dashboard" })).toBeVisible();
   await expect(page.getByText("Coffee")).toBeVisible();
   await expect(page.getByText("Category Breakdown")).toBeVisible();
-  await expect(page.getByText("Income")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Income vs Expense/i })).toBeVisible();
 
   await page.getByLabel("Months").selectOption("12");
-  await page.getByLabel("Type").selectOption("INCOME");
+  await page.locator('select[aria-label="Type"]').first().selectOption("INCOME");
 
   await page.getByPlaceholder("Account name").fill("Savings");
   await page.getByRole("button", { name: "Add" }).first().click();
-  await expect(page.getByText("Savings")).toBeVisible();
+  await expect(
+    page.locator("section", { has: page.getByRole("heading", { name: "Manage Accounts" }) }).getByText("Savings")
+  ).toBeVisible();
 
   await page.getByPlaceholder("Category name").fill("Utilities");
   await page.getByRole("button", { name: "Add" }).nth(1).click();
-  await expect(page.getByText("Utilities")).toBeVisible();
+  await expect(
+    page.locator("section", { has: page.getByRole("heading", { name: "Manage Categories" }) }).getByText("Utilities")
+  ).toBeVisible();
 
   await page.getByLabel("Amount").first().fill("70");
   await page.getByRole("button", { name: "Add Transaction" }).click();
@@ -361,13 +478,13 @@ test("transactions dashboard supports edit and delete transaction", async ({ pag
   const row = page.locator("li", { hasText: "Coffee" }).first();
 
   await row.getByRole("button", { name: "Edit" }).click();
-  await row.getByLabel("Amount").fill("99");
-  await row.getByRole("button", { name: "Save" }).click();
+  await page.locator('li label:has-text("Amount") input').first().fill("99");
+  await page.getByRole("button", { name: "Save" }).first().click();
 
-  await expect(page.getByText("$99.00")).toBeVisible();
+  await expect(page.locator("li", { hasText: "EXPENSE $99.00" }).first()).toBeVisible();
 
-  const updatedRow = page.locator("li", { hasText: "$99.00" }).first();
+  const updatedRow = page.locator("li", { hasText: "EXPENSE $99.00" }).first();
   await updatedRow.getByRole("button", { name: "Delete" }).click();
 
-  await expect(page.getByText("$99.00")).not.toBeVisible();
+  await expect(page.locator("li", { hasText: "EXPENSE $99.00" })).toHaveCount(0);
 });
