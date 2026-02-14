@@ -6,6 +6,7 @@ import { type AuthenticatedRequest, withAuth } from "@/lib/api/with-auth";
 import { sendError, sendOk } from "@/lib/api/response";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { isGroupMember } from "@/lib/shared-groups";
+import { buildSettlementSuggestions } from "@/lib/settlement-engine";
 
 function parseId(req: AuthenticatedRequest): string | null {
   const id = req.query.id;
@@ -19,10 +20,6 @@ const createSettlementSchema = z.object({
   note: z.string().trim().max(600).optional(),
   status: z.nativeEnum(SharedSettlementStatus).optional(),
 });
-
-function round2(value: number) {
-  return Math.round(value * 100) / 100;
-}
 
 export async function sharedGroupSettlementsHandler(req: AuthenticatedRequest, res: NextApiResponse) {
   const groupId = parseId(req);
@@ -64,61 +61,16 @@ export async function sharedGroupSettlementsHandler(req: AuthenticatedRequest, r
         }),
       ]);
 
-      const netByName = new Map<string, number>();
-      for (const expense of expenses) {
-        for (const participant of expense.participants) {
-          const current = netByName.get(participant.participantName) ?? 0;
-          netByName.set(
-            participant.participantName,
-            round2(current + Number(participant.paidAmount) - Number(participant.shareAmount))
-          );
-        }
-      }
-
-      const creditors: Array<{ name: string; amount: number }> = [];
-      const debtors: Array<{ name: string; amount: number }> = [];
-      for (const [name, net] of netByName.entries()) {
-        if (net > 0.01) creditors.push({ name, amount: net });
-        if (net < -0.01) debtors.push({ name, amount: Math.abs(net) });
-      }
-
-      creditors.sort((a, b) => b.amount - a.amount);
-      debtors.sort((a, b) => b.amount - a.amount);
-
-      const memberByName = new Map(members.map((member) => [member.displayName, member]));
-      const suggestions: Array<{
-        fromMemberId: string;
-        toMemberId: string;
-        fromDisplayName: string;
-        toDisplayName: string;
-        amount: number;
-      }> = [];
-
-      let d = 0;
-      let c = 0;
-      while (d < debtors.length && c < creditors.length) {
-        const debtor = debtors[d];
-        const creditor = creditors[c];
-        const amount = round2(Math.min(debtor.amount, creditor.amount));
-        if (amount <= 0) break;
-
-        const fromMember = memberByName.get(debtor.name);
-        const toMember = memberByName.get(creditor.name);
-        if (fromMember && toMember && fromMember.id !== toMember.id) {
-          suggestions.push({
-            fromMemberId: fromMember.id,
-            toMemberId: toMember.id,
-            fromDisplayName: fromMember.displayName,
-            toDisplayName: toMember.displayName,
-            amount,
-          });
-        }
-
-        debtor.amount = round2(debtor.amount - amount);
-        creditor.amount = round2(creditor.amount - amount);
-        if (debtor.amount <= 0.01) d += 1;
-        if (creditor.amount <= 0.01) c += 1;
-      }
+      const suggestions = buildSettlementSuggestions(
+        members.map((member) => ({ id: member.id, displayName: member.displayName })),
+        expenses.map((expense) => ({
+          participants: expense.participants.map((participant) => ({
+            participantName: participant.participantName,
+            shareAmount: Number(participant.shareAmount),
+            paidAmount: Number(participant.paidAmount),
+          })),
+        }))
+      );
 
       return sendOk(res, {
         suggestions,
