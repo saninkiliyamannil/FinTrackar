@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/client";
-import { AppNav } from "@/components/layout/app-nav";
+import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { FormRow } from "@/components/ui/form-row";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -85,6 +85,20 @@ function parseParticipantNames(raw: string) {
     .split(/[\n,]/g)
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+function parseCustomParticipants(raw: string) {
+  return raw
+    .split(/[\n,]/g)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [namePart, amountPart] = entry.split(":");
+      const participantName = String(namePart || "").trim();
+      const shareAmount = Number(String(amountPart || "").trim());
+      return { participantName, shareAmount };
+    })
+    .filter((item) => item.participantName.length > 0 && Number.isFinite(item.shareAmount) && item.shareAmount > 0);
 }
 
 export default function SharedExpensesPage() {
@@ -185,10 +199,21 @@ export default function SharedExpensesPage() {
     setError(null);
     const amount = Number(totalAmount);
     const names = parseParticipantNames(participantsText);
+    const customParticipants = parseCustomParticipants(participantsText);
     if (!selectedGroupId) return setError("Select a group");
     if (!title.trim()) return setError("Title is required");
     if (!Number.isFinite(amount) || amount <= 0) return setError("Amount must be greater than 0");
-    if (names.length === 0) return setError("At least one participant is required");
+    if (splitMethod === "EQUAL" && names.length === 0) return setError("At least one participant is required");
+    if (splitMethod === "CUSTOM" && customParticipants.length === 0) {
+      return setError("For custom split, enter participants as Name:Amount");
+    }
+    if (splitMethod === "CUSTOM") {
+      const splitTotal = Number(customParticipants.reduce((sum, p) => sum + p.shareAmount, 0).toFixed(2));
+      const expected = Number(amount.toFixed(2));
+      if (Math.abs(splitTotal - expected) > 0.01) {
+        return setError(`Custom split total ${currency(splitTotal)} must match ${currency(expected)}`);
+      }
+    }
     try {
       const res = await fetch("/api/shared-expenses", {
         method: "POST",
@@ -200,7 +225,10 @@ export default function SharedExpensesPage() {
           date,
           note: note || undefined,
           splitMethod,
-          participants: names.map((participantName) => ({ participantName })),
+          participants:
+            splitMethod === "CUSTOM"
+              ? customParticipants.map((item) => ({ participantName: item.participantName, shareAmount: item.shareAmount }))
+              : names.map((participantName) => ({ participantName })),
         }),
       });
       const payload = (await res.json()) as Envelope<SharedExpenseItem>;
@@ -359,10 +387,21 @@ export default function SharedExpensesPage() {
   }
 
   return (
-    <main className="app-shell">
+    <AppShell
+      actions={
+        <>
+          <button className="btn btn-subtle" onClick={joinGroup}>
+            Invite
+          </button>
+          <button className={primaryButtonClass} onClick={createSharedExpense}>
+            + Add Shared Expense
+          </button>
+        </>
+      }
+    >
       <div className="app-container">
-        <h1 className="page-title mb-2">Shared Expenses</h1>
-        <AppNav />
+        <h1 className="text-4xl font-bold text-slate-100">Shared Expenses</h1>
+        <p className="mb-6 text-lg text-slate-400">Manage shared expenses and budgets with others</p>
 
         <Card className="mb-4 p-4">
           <SectionHeader title="Groups" description="Create, join, and settle group balances." />
@@ -429,7 +468,12 @@ export default function SharedExpensesPage() {
               <option value="EQUAL">Equal split</option>
               <option value="CUSTOM">Custom split</option>
             </select>
-            <input className="field" placeholder="Participants (comma separated)" value={participantsText} onChange={(event) => setParticipantsText(event.target.value)} />
+            <input
+              className="field"
+              placeholder={splitMethod === "CUSTOM" ? "Name:Amount, Name:Amount" : "Participants (comma separated)"}
+              value={participantsText}
+              onChange={(event) => setParticipantsText(event.target.value)}
+            />
             <button className={primaryButtonClass} onClick={createSharedExpense}>
               Add Expense
             </button>
@@ -520,6 +564,6 @@ export default function SharedExpensesPage() {
         </Card>
         {error && <p className="mt-3 text-sm text-rose-700">{error}</p>}
       </div>
-    </main>
+    </AppShell>
   );
 }

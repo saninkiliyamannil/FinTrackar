@@ -72,6 +72,16 @@ async function handleGet(req: AuthenticatedRequest, res: NextApiResponse) {
     };
   }
 
+  if (typeof req.query.search === "string" && req.query.search.trim()) {
+    const search = req.query.search.trim();
+    where.OR = [
+      { note: { contains: search } },
+      { type: normalizeTransactionType(search) ?? undefined },
+      { category: { name: { contains: search } } },
+      { bankAccount: { name: { contains: search } } },
+    ].filter(Boolean) as Prisma.TransactionWhereInput[];
+  }
+
   const [total, items] = await Promise.all([
     prisma.transaction.count({ where }),
     prisma.transaction.findMany({

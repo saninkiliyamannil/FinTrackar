@@ -11,7 +11,7 @@
     "phase_1_foundation": {
       "status": "Completed",
       "tasks": [
-        "Neon Auth middleware",
+        "Session auth middleware",
         "Prisma schema sync",
         "Protected API wrappers"
       ]

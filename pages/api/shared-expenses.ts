@@ -88,7 +88,7 @@ export async function sharedExpensesHandler(req: AuthenticatedRequest, res: Next
           return sendError(res, 404, "Shared group not found", "NOT_FOUND");
         }
       }
-      const where = { userId, ...(groupId ? { groupId } : {}) };
+      const where = groupId ? { groupId } : { userId };
 
       const [total, items] = await Promise.all([
         prisma.sharedExpense.count({ where }),

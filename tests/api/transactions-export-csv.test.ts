@@ -23,7 +23,7 @@ describe("/api/transactions/export.csv", () => {
 
   it("returns 405 for non-GET", async () => {
     const { req, res } = createMocks({ method: "POST" });
-    (req as any).auth = { userId: "u-1", neonAuthId: "n-1" };
+    (req as any).auth = { userId: "u-1" };
 
     await transactionExportCsvHandler(req as any, res as unknown as NextApiResponse);
     expect(res._getStatusCode()).toBe(405);
@@ -43,7 +43,7 @@ describe("/api/transactions/export.csv", () => {
     ]);
 
     const { req, res } = createMocks({ method: "GET", query: {} });
-    (req as any).auth = { userId: "u-1", neonAuthId: "n-1" };
+    (req as any).auth = { userId: "u-1" };
 
     await transactionExportCsvHandler(req as any, res as unknown as NextApiResponse);
 

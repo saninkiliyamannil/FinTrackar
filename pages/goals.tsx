@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/client";
-import { AppNav } from "@/components/layout/app-nav";
+import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { FormRow } from "@/components/ui/form-row";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -44,6 +44,7 @@ export default function GoalsPage() {
   const [currentAmount, setCurrentAmount] = useState("0");
   const [targetDate, setTargetDate] = useState("");
   const [note, setNote] = useState("");
+  const [customAdjustments, setCustomAdjustments] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -92,10 +93,11 @@ export default function GoalsPage() {
   async function addProgress(goal: GoalItem, delta: number) {
     setError(null);
     try {
+      const nextAmount = Math.max(0, Number((goal.currentAmount + delta).toFixed(2)));
       const res = await fetch(`/api/goals/${goal.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentAmount: Number((goal.currentAmount + delta).toFixed(2)) }),
+        body: JSON.stringify({ currentAmount: nextAmount }),
       });
       const payload = (await res.json()) as Envelope<GoalItem>;
       if (!res.ok || payload.code !== "OK") throw new Error(payload.error?.message || "Update failed");
@@ -103,6 +105,17 @@ export default function GoalsPage() {
     } catch (err) {
       setError((err as Error).message || "Update goal failed");
     }
+  }
+
+  async function applyCustomProgress(goal: GoalItem, factor: 1 | -1) {
+    const raw = customAdjustments[goal.id] || "";
+    const amount = Number(raw);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Enter a valid custom amount.");
+      return;
+    }
+    await addProgress(goal, factor * amount);
+    setCustomAdjustments((prev) => ({ ...prev, [goal.id]: "" }));
   }
 
   async function deleteGoal(id: string) {
@@ -138,10 +151,16 @@ export default function GoalsPage() {
   }
 
   return (
-    <main className="app-shell">
-      <div className="app-container max-w-5xl">
-        <h1 className="page-title mb-2">Goals</h1>
-        <AppNav />
+    <AppShell
+      actions={
+        <button className="btn btn-primary" onClick={createGoal}>
+          + New Goal
+        </button>
+      }
+    >
+      <div className="app-container">
+        <h1 className="text-4xl font-bold text-slate-100">Financial Goals</h1>
+        <p className="mb-6 text-lg text-slate-400">Track your progress towards financial milestones</p>
 
         <Card className="mb-4 p-4">
           <SectionHeader title="Create Goal" description="Track progress toward savings targets." />
@@ -186,6 +205,18 @@ export default function GoalsPage() {
                   <button className="btn btn-subtle text-xs" onClick={() => void addProgress(goal, 100)}>
                     +100
                   </button>
+                  <input
+                    className="field w-32 px-2 py-1 text-xs"
+                    placeholder="Custom"
+                    value={customAdjustments[goal.id] || ""}
+                    onChange={(e) => setCustomAdjustments((prev) => ({ ...prev, [goal.id]: e.target.value }))}
+                  />
+                  <button className="btn btn-subtle text-xs" onClick={() => void applyCustomProgress(goal, 1)}>
+                    +Custom
+                  </button>
+                  <button className="btn btn-subtle text-xs" onClick={() => void applyCustomProgress(goal, -1)}>
+                    -Custom
+                  </button>
                   <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{goal.status}</span>
                 </div>
               </div>
@@ -193,6 +224,6 @@ export default function GoalsPage() {
           </div>
         </Card>
       </div>
-    </main>
+    </AppShell>
   );
 }

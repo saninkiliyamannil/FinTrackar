@@ -66,9 +66,9 @@ function normalizeParticipants(
   return resolved;
 }
 
-async function findOwnedExpense(id: string, userId: string) {
+async function findExpenseById(id: string) {
   return prisma.sharedExpense.findFirst({
-    where: { id, userId },
+    where: { id },
     include: {
       group: {
         select: { id: true, name: true, inviteCode: true },
@@ -85,8 +85,12 @@ export async function sharedExpenseByIdHandler(req: AuthenticatedRequest, res: N
   }
 
   try {
-    const existing = await findOwnedExpense(id, req.auth.userId);
+    const existing = await findExpenseById(id);
     if (!existing) {
+      return sendError(res, 404, "Shared expense not found", "NOT_FOUND");
+    }
+    const canAccess = existing.userId === req.auth.userId || (existing.groupId ? await isGroupMember(existing.groupId, req.auth.userId) : false);
+    if (!canAccess) {
       return sendError(res, 404, "Shared expense not found", "NOT_FOUND");
     }
 
@@ -198,6 +202,9 @@ export async function sharedExpenseByIdHandler(req: AuthenticatedRequest, res: N
     }
 
     if (req.method === "DELETE") {
+      if (existing.userId !== req.auth.userId) {
+        return sendError(res, 403, "Only the creator can delete this shared expense", "FORBIDDEN");
+      }
       const limit = checkRateLimit({
         key: `shared-expense:delete:${req.auth.userId}`,
         limit: 50,

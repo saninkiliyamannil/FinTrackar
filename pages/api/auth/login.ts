@@ -5,10 +5,12 @@ import { sendError, sendOk } from "@/lib/api/response";
 import { setSessionCookie } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { verifyPassword } from "@/lib/auth/password";
+import { issueEmailOtp } from "@/lib/auth/email-otp";
+import { sendEmailOtp } from "@/lib/email/send-email-otp";
 
 const loginSchema = z.object({
   email: z.string().trim().email().max(320),
-  password: z.string().min(8).max(72),
+  password: z.string().min(1).max(200),
 });
 
 function getClientIdentifier(req: NextApiRequest) {
@@ -58,6 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         email: true,
         displayName: true,
         passwordHash: true,
+        emailVerified: true,
       },
     });
 
@@ -69,9 +72,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!validPassword) {
       return sendError(res, 401, "Invalid email or password", "INVALID_CREDENTIALS");
     }
+    if (!user.emailVerified) {
+      const otp = await issueEmailOtp(user.id, user.email);
+      await sendEmailOtp({ to: user.email, code: otp.code });
+      return sendError(res, 403, "Email not verified. OTP sent to your email.", "EMAIL_NOT_VERIFIED");
+    }
 
     await setSessionCookie(res, { userId: user.id, email: user.email });
-    return sendOk(res, { user });
+    return sendOk(res, {
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+      },
+    });
   } catch (error) {
     console.error("Login API error:", error);
     return sendError(res, 500, "Internal server error", "INTERNAL_ERROR");

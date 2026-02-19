@@ -24,7 +24,7 @@ describe("/api/auth/session", () => {
     await route(req as any, res as unknown as NextApiResponse);
 
     expect(res._getStatusCode()).toBe(200);
-    expect(res._getJSONData()).toEqual({
+    expect(res._getJSONData()).toMatchObject({
       data: { user: { id: "user-1", email: "u@example.com" } },
       error: null,
       code: "OK",

@@ -11,6 +11,11 @@ model User {
   id          String   @id @default(cuid())
   email       String   @unique
   passwordHash String
+  emailVerified Boolean @default(true)
+  emailOtpHash String?
+  emailOtpExpiresAt DateTime?
+  emailOtpAttempts Int @default(0)
+  emailOtpLastSentAt DateTime?
   displayName String?
   image       String?
   createdAt   DateTime @default(now())
@@ -25,6 +30,9 @@ model User {
   sharedGroupsCreated SharedGroup[] @relation("GroupCreator")
   sharedGroupMemberships SharedGroupMember[]
   sharedSettlementsCreated SharedSettlement[] @relation("SettlementCreator")
+  locationAnchors LocationAnchor[]
+  locationReminderLogs LocationReminderLog[]
+  messageImports MessageImport[]
 
   @@index([createdAt])
 }
@@ -104,6 +112,66 @@ model Budget {
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([userId, categoryId, month, year])
+}
+
+model LocationAnchor {
+  id        String   @id @default(cuid())
+  label     String
+  locationKey String
+  hourStart Int
+  hourEnd   Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  reminderLogs LocationReminderLog[]
+
+  @@index([userId, isActive])
+  @@unique([userId, label])
+}
+
+model LocationReminderLog {
+  id        String   @id @default(cuid())
+  remindedAt DateTime @default(now())
+  message   String
+  createdAt DateTime @default(now())
+
+  userId String
+  anchorId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  anchor LocationAnchor @relation(fields: [anchorId], references: [id], onDelete: Cascade)
+
+  @@index([userId, remindedAt])
+  @@index([anchorId, remindedAt])
+}
+
+enum MessageImportStatus {
+  PARSED
+  CONFIRMED
+  FAILED
+}
+
+model MessageImport {
+  id          String   @id @default(cuid())
+  source      String   @default("SAMPLE_IMAGE")
+  imagePath   String?
+  extractedText String?
+  parsedAmount Decimal? @db.Decimal(14, 2)
+  parsedType  TransactionType?
+  parsedDate  DateTime?
+  parsedNote  String?
+  confidence  Float    @default(0)
+  status      MessageImportStatus @default(PARSED)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Goal {

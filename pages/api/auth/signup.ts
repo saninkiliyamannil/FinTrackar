@@ -2,9 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sendError, sendOk } from "@/lib/api/response";
-import { setSessionCookie } from "@/lib/auth/session";
 import { checkRateLimit } from "@/lib/api/rate-limit";
 import { hashPassword } from "@/lib/auth/password";
+import { issueEmailOtp } from "@/lib/auth/email-otp";
+import { sendEmailOtp } from "@/lib/email/send-email-otp";
 
 const signupSchema = z.object({
   email: z.string().trim().email().max(320),
@@ -73,6 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         email,
         passwordHash,
         displayName: parsed.data.displayName || null,
+        emailVerified: false,
       },
       select: {
         id: true,
@@ -81,8 +83,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    await setSessionCookie(res, { userId: user.id, email: user.email });
-    return sendOk(res, { user }, 201);
+    const otp = await issueEmailOtp(user.id, user.email);
+    await sendEmailOtp({ to: user.email, code: otp.code });
+    return sendOk(res, { user, requiresEmailVerification: true }, 201);
   } catch (error) {
     console.error("Signup API error:", error);
     return sendError(res, 500, "Internal server error", "INTERNAL_ERROR");

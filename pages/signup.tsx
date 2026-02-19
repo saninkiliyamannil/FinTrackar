@@ -1,25 +1,25 @@
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/router";
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
-import { FormRow } from "@/components/ui/form-row";
-import { SectionHeader } from "@/components/ui/section-header";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const strongPasswordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,72}$/;
 
 export default function SignupPage() {
-  const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [showOtp, setShowOtp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setMessage(null);
 
     const value = email.trim().toLowerCase();
     if (!emailRegex.test(value)) {
@@ -52,8 +52,9 @@ export default function SignupPage() {
         setError(payload?.error?.message || "Signup failed.");
         return;
       }
-
-      await router.replace("/transactions");
+      setPendingEmail(value);
+      setShowOtp(true);
+      setMessage("Account created. OTP sent to your email.");
     } catch {
       setError("Network error. Try again.");
     } finally {
@@ -61,86 +62,135 @@ export default function SignupPage() {
     }
   }
 
-  return (
-    <main className="app-shell">
-      <div className="app-container grid items-start gap-6 py-6 md:grid-cols-2">
-        <Card className="p-6" as="div">
-          <p className="inline-block rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-teal-800">
-            FinTrack
-          </p>
-          <h1 className="mt-4 text-4xl font-extrabold leading-tight text-slate-900">Create your account</h1>
-          <p className="mt-3 text-sm text-slate-600">
-            Start tracking spending, income, and budgets with a secure local account.
-          </p>
-        </Card>
+  async function onVerifyOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setMessage(null);
+    if (!/^\d{6}$/.test(otp.trim())) {
+      setError("Enter the 6-digit OTP.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: pendingEmail, otp: otp.trim() }),
+      });
+      const payload = await res.json();
+      if (!res.ok || payload.code !== "OK") {
+        setError(payload?.error?.message || "OTP verification failed.");
+        return;
+      }
+      window.location.href = "/dashboard";
+      return;
+    } catch {
+      setError("Network error. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-        <Card className="p-6" as="div">
-          <SectionHeader title="Sign up" />
-          <form onSubmit={onSubmit}>
-            <FormRow columnsClass="grid-cols-1">
-            <label className="block text-sm text-slate-700">
-              <span className="text-slate-700">Name (optional)</span>
+  async function resendOtp() {
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/auth/resend-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: pendingEmail }),
+      });
+      const payload = await res.json();
+      if (!res.ok || payload.code !== "OK") {
+        setError(payload?.error?.message || "Failed to resend OTP.");
+        return;
+      }
+      setMessage("OTP resent. Check your email.");
+    } catch {
+      setError("Network error. Try again.");
+    }
+  }
+
+  return (
+    <main className="min-h-screen px-4 py-8 text-slate-100">
+      <div className="mx-auto max-w-md">
+        <section className="panel p-8">
+          <p className="text-base font-semibold text-cyan-300">FinTrack</p>
+          <h1 className="mt-2 text-4xl font-bold">{showOtp ? "Verify email" : "Create account"}</h1>
+          <p className="mt-2 text-sm text-slate-400">
+            {showOtp ? `Enter the OTP sent to ${pendingEmail}.` : "Sign up to continue."}
+          </p>
+
+          {!showOtp ? (
+            <form onSubmit={onSubmit} className="mt-6 space-y-4">
               <input
                 type="text"
-                placeholder="Jane Doe"
+                placeholder="Name (optional)"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 autoComplete="name"
-                className={`field mt-1 ${error ? "field-error" : ""}`}
+                className={`field ${error ? "field-error" : ""}`}
               />
-            </label>
-            <label className="block text-sm text-slate-700">
-              <span className="text-slate-700">Email</span>
               <input
                 type="email"
-                placeholder="you@example.com"
+                placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
                 required
-                className={`field mt-1 ${error ? "field-error" : ""}`}
+                className={`field ${error ? "field-error" : ""}`}
               />
-            </label>
-            <label className="block text-sm text-slate-700">
-              <span className="text-slate-700">Password</span>
               <input
                 type="password"
-                placeholder="8+ chars with letters and numbers"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
                 required
-                className={`field mt-1 ${error ? "field-error" : ""}`}
+                className={`field ${error ? "field-error" : ""}`}
               />
-            </label>
-            <label className="block text-sm text-slate-700">
-              <span className="text-slate-700">Confirm password</span>
               <input
                 type="password"
-                placeholder="Repeat your password"
+                placeholder="Confirm password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
                 required
-                className={`field mt-1 ${error ? "field-error" : ""}`}
+                className={`field ${error ? "field-error" : ""}`}
               />
-            </label>
-            </FormRow>
+              <button type="submit" disabled={loading} className="btn btn-primary w-full py-2.5">
+                {loading ? "Creating account..." : "Create account"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={onVerifyOtp} className="mt-6 space-y-4">
+              <input
+                type="text"
+                placeholder="6-digit OTP"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                required
+                className={`field ${error ? "field-error" : ""}`}
+              />
+              <button type="submit" disabled={loading} className="btn btn-primary w-full py-2.5">
+                {loading ? "Verifying..." : "Verify and continue"}
+              </button>
+              <button type="button" onClick={resendOtp} className="btn btn-subtle w-full py-2.5">
+                Resend OTP
+              </button>
+            </form>
+          )}
 
-            {error ? <p className="text-error mt-3 text-sm">{error}</p> : null}
+          {error ? <p className="mt-3 rounded-lg border border-rose-800/60 bg-rose-950/30 px-3 py-2 text-sm text-rose-300">{error}</p> : null}
+          {message ? <p className="mt-3 rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">{message}</p> : null}
 
-            <button type="submit" disabled={loading} className="btn btn-primary mt-5 w-full">
-              {loading ? "Creating account..." : "Create account"}
-            </button>
-
-            <p className="mt-4 text-sm text-slate-600">
-              Already have an account?{" "}
-              <Link href="/login" className="font-semibold text-teal-700 hover:text-teal-600">
-                Login
-              </Link>
-            </p>
-          </form>
-        </Card>
+          <p className="mt-5 text-sm text-slate-400">
+            Already have an account?{" "}
+            <Link href="/login" className="font-semibold text-cyan-300 hover:text-cyan-200">
+              Sign in
+            </Link>
+          </p>
+        </section>
       </div>
     </main>
   );

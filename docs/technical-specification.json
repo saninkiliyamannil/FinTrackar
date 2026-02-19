@@ -10,13 +10,13 @@
     "backend": "Next.js API Routes",
     "database": "MySQL",
     "orm": "Prisma",
-    "authentication": "Neon Auth (JWT/JWKS validation)",
+    "authentication": "Email/password with signed session cookies",
     "deployment": "Vercel"
   },
   "data_model": {
     "User": {
       "id": "string (cuid, primary key)",
-      "neonAuthId": "string (unique)",
+      "passwordHash": "string",
       "email": "string? (unique)",
       "displayName": "string?",
       "createdAt": "timestamp",
@@ -45,7 +45,7 @@
     }
   },
   "security_model": {
-    "authentication": "Neon token validation in API middleware",
+    "authentication": "Session validation in API middleware",
     "authorization": "User isolation via userId scoping",
     "api_controls": [
       "Input validation via zod",

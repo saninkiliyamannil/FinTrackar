@@ -11,6 +11,8 @@ import {
 type AuthUser = {
   id: string;
   email: string;
+  displayName?: string | null;
+  image?: string | null;
 };
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
@@ -32,7 +34,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const refresh = useCallback(async () => {
     setStatus("loading");
     try {
-      const response = await fetch("/api/auth/session");
+      const response = await fetch("/api/auth/session", {
+        credentials: "include",
+        cache: "no-store",
+      });
       if (!response.ok) {
         setUser(null);
         setStatus("unauthenticated");
@@ -42,7 +47,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const payload = await response.json();
       const resolvedUser = payload?.data?.user;
       if (resolvedUser?.id && resolvedUser?.email) {
-        setUser(resolvedUser as AuthUser);
+        setUser({
+          id: resolvedUser.id,
+          email: resolvedUser.email,
+          displayName: resolvedUser.displayName ?? null,
+          image: resolvedUser.image ?? null,
+        });
         setStatus("authenticated");
         return;
       }

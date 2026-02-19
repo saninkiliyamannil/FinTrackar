@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth/client";
-import { AppNav } from "@/components/layout/app-nav";
+import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { FormRow } from "@/components/ui/form-row";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -146,10 +146,16 @@ export default function BudgetsPage() {
   }
 
   return (
-    <main className="app-shell">
-      <div className="app-container max-w-5xl">
-        <h1 className="page-title mb-2">Budgets</h1>
-        <AppNav />
+    <AppShell
+      actions={
+        <button className="btn btn-primary" onClick={createBudget}>
+          + New Budget
+        </button>
+      }
+    >
+      <div className="app-container">
+        <h1 className="text-4xl font-bold text-slate-100">Budgets</h1>
+        <p className="mb-6 text-lg text-slate-400">Set and manage your spending limits</p>
 
         <Card className="mb-4 p-4">
           <SectionHeader title="Plan Budget" description="Set monthly spending caps by expense category." />
@@ -206,6 +212,6 @@ export default function BudgetsPage() {
           </div>
         </Card>
       </div>
-    </main>
+    </AppShell>
   );
 }

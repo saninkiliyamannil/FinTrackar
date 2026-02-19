@@ -1,19 +1,43 @@
 # FinTrack Deployment Guide
 
-This guide will walk you through the process of deploying the FinTrack application using Google Firebase. Follow these steps to get your personal finance tracker up and running.
+Deploy the web app with Vercel and MySQL.
 
 ## Prerequisites
 
-Before you begin, make sure you have the following:
+1. Node.js and npm
+2. MySQL database
+3. Vercel project linked to this repository
 
-1. A Google account
-2. Node.js and npm installed on your computer
-3. Git installed on your computer
+## Deploy Steps
 
-## Step 1: Clone the Repository
-
-First, clone the repository to your local machine:
+1. Install dependencies:
 
 ```bash
-git clone <repository-url>
-cd finance-tracker
+npm install
+```
+
+2. Run migrations:
+
+```bash
+npx prisma migrate deploy
+npx prisma generate
+```
+
+3. Build and test:
+
+```bash
+npm run build
+npm test
+```
+
+4. Configure production environment variables in Vercel:
+
+- `DATABASE_URL`
+- `DIRECT_URL` (if used for Prisma direct connection)
+- `SESSION_SECRET`
+
+5. Deploy from `main`.
+
+## Notes
+
+- Authentication is handled by FinTrack's internal session flow.

@@ -6,13 +6,13 @@
       "frontend": "Next.js + TypeScript + Tailwind CSS",
       "backend": "Next.js API routes + Prisma",
       "database": "MySQL",
-      "authentication": "Neon Auth",
+      "authentication": "Session auth (email/password)",
       "deployment": "Vercel"
     }
   },
   "features": {
     "completed": [
-      "Protected middleware with Neon session validation",
+      "Protected middleware with session validation",
       "Transaction APIs with full CRUD",
       "Account and category management APIs (GET/POST/PATCH/DELETE)",
       "Analytics endpoints (monthly and category breakdown)",

@@ -30,7 +30,7 @@ describe("/api/accounts/[id]", () => {
       query: { id: "a1" },
       body: { name: "Updated", type: "BANK" },
     });
-    (req as any).auth = { userId: "u1", neonAuthId: "n1" };
+    (req as any).auth = { userId: "u1" };
     await accountByIdHandler(req as any, res as unknown as NextApiResponse);
     expect(res._getStatusCode()).toBe(200);
     expect(res._getJSONData()).toMatchObject({ code: "OK", data: { id: "a1" } });
@@ -43,7 +43,7 @@ describe("/api/accounts/[id]", () => {
       method: "DELETE",
       query: { id: "a1" },
     });
-    (req as any).auth = { userId: "u1", neonAuthId: "n1" };
+    (req as any).auth = { userId: "u1" };
     await accountByIdHandler(req as any, res as unknown as NextApiResponse);
     expect(res._getStatusCode()).toBe(409);
     expect(res._getJSONData()).toMatchObject({

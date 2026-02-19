@@ -30,7 +30,7 @@ describe("/api/categories/[id]", () => {
       query: { id: "c1" },
       body: { name: "Updated", type: "EXPENSE" },
     });
-    (req as any).auth = { userId: "u1", neonAuthId: "n1" };
+    (req as any).auth = { userId: "u1" };
     await categoryByIdHandler(req as any, res as unknown as NextApiResponse);
     expect(res._getStatusCode()).toBe(200);
     expect(res._getJSONData()).toMatchObject({ code: "OK", data: { id: "c1" } });
@@ -43,7 +43,7 @@ describe("/api/categories/[id]", () => {
       method: "DELETE",
       query: { id: "c1" },
     });
-    (req as any).auth = { userId: "u1", neonAuthId: "n1" };
+    (req as any).auth = { userId: "u1" };
     await categoryByIdHandler(req as any, res as unknown as NextApiResponse);
     expect(res._getStatusCode()).toBe(409);
     expect(res._getJSONData()).toMatchObject({

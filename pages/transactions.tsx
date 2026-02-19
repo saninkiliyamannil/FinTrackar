@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import { useAuth } from "@/lib/auth/client";
-import { AppNav } from "@/components/layout/app-nav";
+import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { FormRow } from "@/components/ui/form-row";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -77,6 +78,35 @@ type Category = {
   icon?: string | null;
 };
 
+type LocationAnchor = {
+  id: string;
+  label: string;
+  locationKey: string;
+  hourStart: number;
+  hourEnd: number;
+  isActive: boolean;
+};
+
+type LocationReminderLog = {
+  id: string;
+  message: string;
+  remindedAt: string;
+  anchor: { id: string; label: string; locationKey: string };
+};
+
+type MessageImportItem = {
+  id: string;
+  imagePath: string | null;
+  extractedText: string | null;
+  parsedAmount: number | null;
+  parsedType: "INCOME" | "EXPENSE" | null;
+  parsedDate: string | null;
+  parsedNote: string | null;
+  confidence: number;
+  status: "PARSED" | "CONFIRMED" | "FAILED";
+  createdAt: string;
+};
+
 type TransactionForm = {
   amount: string;
   type: "INCOME" | "EXPENSE";
@@ -145,6 +175,15 @@ function monthLabel(value: string) {
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function validateForm(form: TransactionForm): FormErrors {
@@ -247,7 +286,9 @@ function CategoryBreakdownChart({ items }: { items: CategoryBreakdownItem[] }) {
 }
 
 export default function TransactionsPage() {
+  const router = useRouter();
   const { status, login, user } = useAuth();
+  const createSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -263,9 +304,11 @@ export default function TransactionsPage() {
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>("monthly");
   const [trendRange, setTrendRange] = useState(12);
   const [typeFilter, setTypeFilter] = useState<"ALL" | "INCOME" | "EXPENSE">("ALL");
+  const [searchFilter, setSearchFilter] = useState("");
   const [breakdownType, setBreakdownType] = useState<"INCOME" | "EXPENSE">("EXPENSE");
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const [totalTransactions, setTotalTransactions] = useState(0);
 
   const [createForm, setCreateForm] = useState<TransactionForm>({
     amount: "",
@@ -306,10 +349,22 @@ export default function TransactionsPage() {
     icon: "",
   });
   const [categoryFormError, setCategoryFormError] = useState<string | null>(null);
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
-  const [editingCategoryName, setEditingCategoryName] = useState("");
-  const [editingCategoryType, setEditingCategoryType] =
-    useState<"INCOME" | "EXPENSE">("EXPENSE");
+  const [categoryActionId, setCategoryActionId] = useState<string | null>(null);
+  const [locationAnchors, setLocationAnchors] = useState<LocationAnchor[]>([]);
+  const [locationLogs, setLocationLogs] = useState<LocationReminderLog[]>([]);
+  const [newAnchorLabel, setNewAnchorLabel] = useState("");
+  const [newAnchorLocationKey, setNewAnchorLocationKey] = useState("");
+  const [newAnchorHourStart, setNewAnchorHourStart] = useState("9");
+  const [newAnchorHourEnd, setNewAnchorHourEnd] = useState("11");
+  const [evalLocationKey, setEvalLocationKey] = useState("");
+  const [messageSampleText, setMessageSampleText] = useState("");
+  const [messageImportFile, setMessageImportFile] = useState<File | null>(null);
+  const [messageImports, setMessageImports] = useState<MessageImportItem[]>([]);
+  const [selectedImportId, setSelectedImportId] = useState<string | null>(null);
+  const [confirmImportAmount, setConfirmImportAmount] = useState("");
+  const [confirmImportType, setConfirmImportType] = useState<"INCOME" | "EXPENSE">("EXPENSE");
+  const [confirmImportDate, setConfirmImportDate] = useState(todayIsoDate());
+  const [confirmImportNote, setConfirmImportNote] = useState("");
 
   const filteredCategories = useMemo(
     () => categories.filter((cat) => cat.type.toUpperCase() === createForm.type),
@@ -330,10 +385,11 @@ export default function TransactionsPage() {
       page: String(page),
       pageSize: String(pageSize),
       ...(typeFilter !== "ALL" ? { type: typeFilter } : {}),
+      ...(searchFilter.trim() ? { search: searchFilter.trim() } : {}),
     });
 
     try {
-      const [txRes, analyticsRes, trendsRes, breakdownRes, accountsRes, categoriesRes] = await Promise.all([
+      const [txRes, analyticsRes, trendsRes, breakdownRes, accountsRes, categoriesRes, anchorsRes, remindersRes, importsRes] = await Promise.all([
         fetch(`/api/transactions?${txQuery.toString()}`).then((res) =>
           res.json() as Promise<Envelope<TransactionsResponse>>
         ),
@@ -348,6 +404,9 @@ export default function TransactionsPage() {
         ),
         fetch("/api/accounts").then((res) => res.json() as Promise<Envelope<Account[]>>),
         fetch("/api/categories").then((res) => res.json() as Promise<Envelope<Category[]>>),
+        fetch("/api/location-anchors").then((res) => res.json() as Promise<Envelope<LocationAnchor[]>>),
+        fetch("/api/location-reminders/recent").then((res) => res.json() as Promise<Envelope<LocationReminderLog[]>>),
+        fetch("/api/message-imports/recent").then((res) => res.json() as Promise<Envelope<MessageImportItem[]>>),
       ]);
 
       if (txRes.code !== "OK" || !txRes.data) throw new Error(txRes.error?.message || "Failed to load transactions");
@@ -364,6 +423,15 @@ export default function TransactionsPage() {
       if (categoriesRes.code !== "OK" || !categoriesRes.data) {
         throw new Error(categoriesRes.error?.message || "Failed categories");
       }
+      if (anchorsRes.code !== "OK" || !anchorsRes.data) {
+        throw new Error(anchorsRes.error?.message || "Failed location anchors");
+      }
+      if (remindersRes.code !== "OK" || !remindersRes.data) {
+        throw new Error(remindersRes.error?.message || "Failed location reminders");
+      }
+      if (importsRes.code !== "OK" || !importsRes.data) {
+        throw new Error(importsRes.error?.message || "Failed message imports");
+      }
 
       const txData = txRes.data;
       const analyticsData = analyticsRes.data;
@@ -373,11 +441,15 @@ export default function TransactionsPage() {
       const categoriesData = categoriesRes.data;
 
       setTransactions(txData.items);
+      setTotalTransactions(txData.total);
       setAnalytics(analyticsData);
       setTrends(trendsData);
       setBreakdown(breakdownData);
       setAccounts(accountsData);
       setCategories(categoriesData);
+      setLocationAnchors(anchorsRes.data);
+      setLocationLogs(remindersRes.data);
+      setMessageImports(importsRes.data);
       if (!createForm.bankAccountId && accountsData.length > 0) {
         setCreateForm((prev) => ({ ...prev, bankAccountId: accountsData[0].id }));
       }
@@ -386,11 +458,23 @@ export default function TransactionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [breakdownType, createForm.bankAccountId, months, page, status, trendPeriod, trendRange, typeFilter]);
+  }, [breakdownType, createForm.bankAccountId, months, page, searchFilter, status, trendPeriod, trendRange, typeFilter]);
 
   useEffect(() => {
     void loadDashboardData();
   }, [loadDashboardData]);
+
+  useEffect(() => {
+    if (!router.isReady || router.query.create !== "1") return;
+    createSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [router.isReady, router.query.create]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const nextSearch = typeof router.query.search === "string" ? router.query.search : "";
+    setSearchFilter(nextSearch);
+    setPage(1);
+  }, [router.isReady, router.query.search]);
 
   const summaryCards = useMemo(() => {
     const summary = analytics?.summary;
@@ -401,6 +485,8 @@ export default function TransactionsPage() {
       { label: "Net", value: currency(summary.net), color: summary.net >= 0 ? "#1d4ed8" : "#b91c1c" },
     ];
   }, [analytics]);
+
+  const visibleTransactions = transactions;
 
 
   const savingsPieSlices = useMemo(() => {
@@ -417,6 +503,46 @@ export default function TransactionsPage() {
       { label: "Deficit", value: Math.abs(savings), color: "#f59e0b" },
     ];
   }, [trends]);
+
+  async function promptAllocateIncomeToGoal(incomeAmount: number) {
+    const goalsRes = await fetch("/api/goals");
+    const goalsPayload = (await goalsRes.json()) as Envelope<{ items: { id: string; name: string; targetAmount: number; currentAmount: number; status: string }[] }>;
+    if (!goalsRes.ok || goalsPayload.code !== "OK" || !goalsPayload.data) {
+      setError(goalsPayload.error?.message || "Unable to load goals for allocation.");
+      return;
+    }
+
+    const activeGoals = goalsPayload.data.items.filter((g) => g.status === "ACTIVE" && g.currentAmount < g.targetAmount);
+    if (activeGoals.length === 0) {
+      return;
+    }
+
+    const shouldAllocate = window.confirm("Income added. Do you want to allocate part of it to a goal?");
+    if (!shouldAllocate) return;
+
+    const amountRaw = window.prompt(`Enter amount to allocate (max ${incomeAmount.toFixed(2)}):`, `${Math.max(0, Math.round(incomeAmount * 0.25)).toFixed(2)}`);
+    if (!amountRaw) return;
+    const amount = Number(amountRaw);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > incomeAmount) {
+      setError("Invalid allocation amount.");
+      return;
+    }
+
+    const targetGoal = activeGoals.sort((a, b) => (a.targetAmount - a.currentAmount) - (b.targetAmount - b.currentAmount))[0];
+    const updateRes = await fetch(`/api/goals/${targetGoal.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentAmount: Number((targetGoal.currentAmount + amount).toFixed(2)) }),
+    });
+    const updatePayload = (await updateRes.json()) as Envelope<{ id: string }>;
+    if (!updateRes.ok || updatePayload.code !== "OK") {
+      setError(updatePayload.error?.message || "Failed to allocate income to goal.");
+      return;
+    }
+
+    setError(null);
+    alert(`Allocated ${currency(amount)} to goal: ${targetGoal.name}`);
+  }
 
   async function createTransaction() {
     const errors = validateForm(createForm);
@@ -463,6 +589,9 @@ export default function TransactionsPage() {
       setCreateForm((prev) => ({ ...prev, amount: "", note: "" }));
       setCreateErrors({});
       void loadDashboardData();
+      if (createForm.type === "INCOME") {
+        void promptAllocateIncomeToGoal(Number(createForm.amount));
+      }
     } catch (err) {
       setTransactions((prev) => prev.filter((tx) => tx.id !== optimisticId));
       setError((err as Error).message || "Failed to create transaction");
@@ -699,36 +828,29 @@ export default function TransactionsPage() {
     }
   }
 
-  function startEditCategory(category: Category) {
-    setEditingCategoryId(category.id);
-    setEditingCategoryName(category.name);
-    setEditingCategoryType((category.type.toUpperCase() as "INCOME" | "EXPENSE") || "EXPENSE");
-  }
-
-  async function saveCategory(category: Category) {
-    if (!editingCategoryName.trim()) {
-      setCategoryFormError("Category name is required");
+  async function quickEditCategory(category: Category) {
+    setCategoryActionId(null);
+    const name = window.prompt("Category name", category.name)?.trim();
+    if (!name) return;
+    const typeInput = window.prompt("Category type (INCOME or EXPENSE)", String(category.type).toUpperCase())?.trim().toUpperCase();
+    if (!typeInput || (typeInput !== "INCOME" && typeInput !== "EXPENSE")) {
+      setCategoryFormError("Category type must be INCOME or EXPENSE");
       return;
     }
     const previous = { ...category };
-    const optimistic: Category = {
-      ...category,
-      name: editingCategoryName.trim(),
-      type: editingCategoryType,
-    };
+    const optimistic: Category = { ...category, name, type: typeInput };
     setCategories((prev) => prev.map((cat) => (cat.id === category.id ? optimistic : cat)));
     try {
       const response = await fetch(`/api/categories/${category.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editingCategoryName.trim(), type: editingCategoryType }),
+        body: JSON.stringify({ name, type: typeInput }),
       });
       const payload = (await response.json()) as Envelope<Category>;
       if (!response.ok || payload.code !== "OK" || !payload.data) {
         throw new Error(payload.error?.message || "Failed to update category");
       }
       setCategories((prev) => prev.map((cat) => (cat.id === category.id ? payload.data! : cat)));
-      setEditingCategoryId(null);
     } catch (err) {
       setCategories((prev) => prev.map((cat) => (cat.id === category.id ? previous : cat)));
       setCategoryFormError((err as Error).message || "Update category failed");
@@ -736,6 +858,7 @@ export default function TransactionsPage() {
   }
 
   async function deleteCategory(category: Category) {
+    setCategoryActionId(null);
     const snapshot = categories;
     setCategories((prev) => prev.filter((cat) => cat.id !== category.id));
     try {
@@ -756,11 +879,200 @@ export default function TransactionsPage() {
       setCategoryFormError((err as Error).message || "Delete category failed");
     }
   }
+
+  async function createLocationAnchor() {
+    if (!newAnchorLabel.trim() || !newAnchorLocationKey.trim()) {
+      setError("Anchor label and location key are required.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/location-anchors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: newAnchorLabel.trim(),
+          locationKey: newAnchorLocationKey.trim(),
+          hourStart: Number(newAnchorHourStart),
+          hourEnd: Number(newAnchorHourEnd),
+        }),
+      });
+      const payload = (await response.json()) as Envelope<LocationAnchor>;
+      if (!response.ok || payload.code !== "OK" || !payload.data) {
+        throw new Error(payload.error?.message || "Failed to create location anchor");
+      }
+      setLocationAnchors((prev) => [payload.data!, ...prev]);
+      setNewAnchorLabel("");
+      setNewAnchorLocationKey("");
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message || "Failed to create location anchor");
+    }
+  }
+
+  async function evaluateReminder() {
+    if (!evalLocationKey.trim()) {
+      setError("Enter a location key to evaluate reminder.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/location-reminders/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locationKey: evalLocationKey.trim() }),
+      });
+      const payload = (await response.json()) as Envelope<{
+        shouldRemind: boolean;
+        reminder?: { id: string; message: string; remindedAt: string; anchorLabel: string };
+        reason?: string;
+      }>;
+      if (!response.ok || payload.code !== "OK" || !payload.data) {
+        throw new Error(payload.error?.message || "Failed to evaluate reminder");
+      }
+
+      if (payload.data.shouldRemind && payload.data.reminder) {
+        alert(payload.data.reminder.message);
+      }
+      void loadDashboardData();
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message || "Failed to evaluate reminder");
+    }
+  }
+
+  async function toggleAnchorActive(anchor: LocationAnchor) {
+    try {
+      const response = await fetch(`/api/location-anchors/${anchor.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !anchor.isActive }),
+      });
+      const payload = (await response.json()) as Envelope<LocationAnchor>;
+      if (!response.ok || payload.code !== "OK" || !payload.data) {
+        throw new Error(payload.error?.message || "Failed to update anchor");
+      }
+      setLocationAnchors((prev) => prev.map((item) => (item.id === anchor.id ? payload.data! : item)));
+    } catch (err) {
+      setError((err as Error).message || "Failed to update anchor");
+    }
+  }
+
+  async function deleteAnchor(anchor: LocationAnchor) {
+    const ok = window.confirm(`Delete location anchor "${anchor.label}"?`);
+    if (!ok) return;
+    try {
+      const response = await fetch(`/api/location-anchors/${anchor.id}`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json()) as Envelope<{ ok: boolean }>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to delete anchor");
+      }
+      setLocationAnchors((prev) => prev.filter((item) => item.id !== anchor.id));
+    } catch (err) {
+      setError((err as Error).message || "Failed to delete anchor");
+    }
+  }
+
+  async function parseSampleMessageImage() {
+    if (!messageSampleText.trim() && !messageImportFile) {
+      setError("Add sample message text or upload an image.");
+      return;
+    }
+
+    try {
+      let dataUrl: string | undefined;
+      if (messageImportFile) {
+        dataUrl = await fileToDataUrl(messageImportFile);
+      }
+
+      const response = await fetch("/api/message-imports/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dataUrl,
+          sampleText: messageSampleText.trim() || undefined,
+        }),
+      });
+      const payload = (await response.json()) as Envelope<{
+        import: MessageImportItem;
+        preview: {
+          amount: number | null;
+          type: "INCOME" | "EXPENSE" | null;
+          date: string | null;
+          note: string | null;
+          confidence: number;
+        };
+      }>;
+      if (!response.ok || payload.code !== "OK" || !payload.data) {
+        throw new Error(payload.error?.message || "Failed to parse message");
+      }
+
+      const imported = payload.data.import;
+      setMessageImports((prev) => [imported, ...prev.filter((item) => item.id !== imported.id)]);
+      setSelectedImportId(imported.id);
+      setConfirmImportAmount(imported.parsedAmount ? String(imported.parsedAmount) : "");
+      setConfirmImportType((imported.parsedType || "EXPENSE") as "INCOME" | "EXPENSE");
+      setConfirmImportDate(imported.parsedDate ? imported.parsedDate.slice(0, 10) : todayIsoDate());
+      setConfirmImportNote(imported.parsedNote || "");
+      setMessageImportFile(null);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message || "Failed to parse message");
+    }
+  }
+
+  async function confirmImportedTransaction() {
+    if (!selectedImportId) {
+      setError("Select a parsed import first.");
+      return;
+    }
+
+    if (!createForm.bankAccountId) {
+      setError("Select an account before confirming imported transaction.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/message-imports/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          importId: selectedImportId,
+          amount: Number(confirmImportAmount),
+          type: confirmImportType,
+          date: confirmImportDate,
+          note: confirmImportNote || undefined,
+          bankAccountId: createForm.bankAccountId,
+          categoryId: createForm.categoryId || undefined,
+        }),
+      });
+      const payload = (await response.json()) as Envelope<Transaction>;
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error?.message || "Failed to confirm imported transaction");
+      }
+
+      setSelectedImportId(null);
+      setConfirmImportAmount("");
+      setConfirmImportNote("");
+      setMessageSampleText("");
+      setError(null);
+      void loadDashboardData();
+    } catch (err) {
+      setError((err as Error).message || "Failed to confirm imported transaction");
+    }
+  }
+
   function exportCsv() {
     const query = new URLSearchParams({
       ...(typeFilter !== "ALL" ? { type: typeFilter } : {}),
     });
     window.location.href = `/api/transactions/export.csv?${query.toString()}`;
+  }
+
+  function openCreateTransaction() {
+    createSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   const inputClass =
@@ -793,102 +1105,121 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="app-shell">
+    <AppShell
+      actions={
+        <>
+          <button onClick={exportCsv} className={subtleButtonClass}>
+            Export
+          </button>
+          <button onClick={openCreateTransaction} className={primaryButtonClass}>
+            + New Transaction
+          </button>
+        </>
+      }
+    >
       <div className="app-container">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="page-title">Transactions Dashboard</h1>
-            <p className="page-subtitle">Track accounts, categories, and transactions in one place.</p>
+            <h1 className="text-4xl font-bold text-slate-100">Transactions Dashboard</h1>
+            <p className="text-lg text-slate-400">View and manage all your financial transactions</p>
           </div>
-          <button onClick={exportCsv} className={subtleButtonClass}>
-            Export CSV
-          </button>
         </div>
-        <AppNav />
 
         <Card className="mb-6 p-4">
           <SectionHeader title="Filters" />
           <FormRow columnsClass="sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <label className="text-sm font-medium text-slate-700">
-            Months
-            <select aria-label="Months" value={months} onChange={(e) => setMonths(Number(e.target.value))} className={`${selectClass} mt-1`}>
-              <option value={3}>3</option>
-              <option value={6}>6</option>
-              <option value={12}>12</option>
-            </select>
-          </label>
+            <label className="text-sm font-medium text-slate-700">
+              Search
+              <input
+                className={`${inputClass} mt-1`}
+                placeholder="Search note/category/date"
+                value={searchFilter}
+                onChange={(e) => {
+                  setSearchFilter(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </label>
+            <label className="text-sm font-medium text-slate-700">
+              Months
+              <select aria-label="Months" value={months} onChange={(e) => setMonths(Number(e.target.value))} className={`${selectClass} mt-1`}>
+                <option value={3}>3</option>
+                <option value={6}>6</option>
+                <option value={12}>12</option>
+              </select>
+            </label>
 
-          <label className="text-sm font-medium text-slate-700">
-            Transaction Type
-            <select
-              aria-label="Type"
-              value={typeFilter}
-              onChange={(e) => {
-                setPage(1);
-                setTypeFilter(e.target.value as "ALL" | "INCOME" | "EXPENSE");
-              }}
-              className={`${selectClass} mt-1`}
-            >
-              <option value="ALL">All</option>
-              <option value="INCOME">Income</option>
-              <option value="EXPENSE">Expense</option>
-            </select>
-          </label>
+            <label className="text-sm font-medium text-slate-700">
+              Transaction Type
+              <select
+                aria-label="Type"
+                value={typeFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setTypeFilter(e.target.value as "ALL" | "INCOME" | "EXPENSE");
+                }}
+                className={`${selectClass} mt-1`}
+              >
+                <option value="ALL">All</option>
+                <option value="INCOME">Income</option>
+                <option value="EXPENSE">Expense</option>
+              </select>
+            </label>
 
-          <label className="text-sm font-medium text-slate-700">
-            Breakdown
-            <select
-              aria-label="Breakdown"
-              value={breakdownType}
-              onChange={(e) => setBreakdownType(e.target.value as "INCOME" | "EXPENSE")}
-              className={`${selectClass} mt-1`}
-            >
-              <option value="EXPENSE">Expense</option>
-              <option value="INCOME">Income</option>
-            </select>
-          </label>
+            <label className="text-sm font-medium text-slate-700">
+              Breakdown
+              <select
+                aria-label="Breakdown"
+                value={breakdownType}
+                onChange={(e) => setBreakdownType(e.target.value as "INCOME" | "EXPENSE")}
+                className={`${selectClass} mt-1`}
+              >
+                <option value="EXPENSE">Expense</option>
+                <option value="INCOME">Income</option>
+              </select>
+            </label>
 
-          <label className="text-sm font-medium text-slate-700">
-            Trend Period
-            <select
-              aria-label="Trend Period"
-              value={trendPeriod}
-              onChange={(e) => {
-                const next = e.target.value as TrendPeriod;
-                setTrendPeriod(next);
-                setTrendRange(next === "daily" ? 14 : next === "weekly" ? 12 : next === "monthly" ? 12 : 5);
-              }}
-              className={`${selectClass} mt-1`}
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-          </label>
+            <label className="text-sm font-medium text-slate-700">
+              Trend Period
+              <select
+                aria-label="Trend Period"
+                value={trendPeriod}
+                onChange={(e) => {
+                  const next = e.target.value as TrendPeriod;
+                  setTrendPeriod(next);
+                  setTrendRange(next === "daily" ? 14 : next === "weekly" ? 12 : next === "monthly" ? 12 : 5);
+                }}
+                className={`${selectClass} mt-1`}
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </label>
 
-          <label className="text-sm font-medium text-slate-700">
-            Trend Range
-            <select
-              aria-label="Trend Range"
-              value={trendRange}
-              onChange={(e) => setTrendRange(Number(e.target.value))}
-              className={`${selectClass} mt-1`}
-            >
-              {(trendPeriod === "daily"
-                ? [7, 14, 30, 60, 90]
-                : trendPeriod === "weekly"
-                  ? [4, 8, 12, 26, 52]
-                  : trendPeriod === "monthly"
-                    ? [3, 6, 12, 24, 36]
-                    : [3, 5, 8, 10, 12]
-              ).map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="text-sm font-medium text-slate-700">
+              Trend Range
+              <select
+                aria-label="Trend Range"
+                value={trendRange}
+                onChange={(e) => setTrendRange(Number(e.target.value))}
+                className={`${selectClass} mt-1`}
+              >
+                {(trendPeriod === "daily"
+                  ? [7, 14, 30, 60, 90]
+                  : trendPeriod === "weekly"
+                    ? [4, 8, 12, 26, 52]
+                    : trendPeriod === "monthly"
+                      ? [3, 6, 12, 24, 36]
+                      : [3, 5, 8, 10, 12]
+                ).map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
           </FormRow>
         </Card>
 
@@ -990,34 +1321,29 @@ export default function TransactionsPage() {
               <button onClick={createCategory} className={primaryButtonClass}>Add</button>
             </FormRow>
             {categoryFormError && <p className="mt-2 text-sm text-rose-700">{categoryFormError}</p>}
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
               {categories.map((cat) => (
-                <li key={cat.id} className="rounded-md border border-slate-200 p-2">
-                  {editingCategoryId === cat.id ? (
-                    <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-                      <input className={inputClass} value={editingCategoryName} onChange={(e) => setEditingCategoryName(e.target.value)} />
-                      <select
-                        className={selectClass}
-                        value={editingCategoryType}
-                        onChange={(e) => setEditingCategoryType(e.target.value as "INCOME" | "EXPENSE")}
-                      >
-                        <option value="EXPENSE">EXPENSE</option>
-                        <option value="INCOME">INCOME</option>
-                      </select>
-                      <div className="flex gap-2">
-                        <button onClick={() => saveCategory(cat)} className={primaryButtonClass}>Save</button>
-                        <button onClick={() => setEditingCategoryId(null)} className={subtleButtonClass}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm text-slate-800">
-                        <strong>{cat.name}</strong> <span className="ml-1 text-slate-500">{cat.type}</span>
-                      </p>
-                      <div className="flex gap-2">
-                        <button onClick={() => startEditCategory(cat)} className={subtleButtonClass}>Edit</button>
-                        <button onClick={() => deleteCategory(cat)} className={dangerButtonClass}>Delete</button>
-                      </div>
+                <li key={cat.id} className="relative rounded-md border border-slate-200 p-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-slate-800">
+                      <strong>{cat.name}</strong> <span className="ml-1 text-slate-500">{cat.type}</span>
+                    </p>
+                    <button
+                      className="btn btn-subtle px-2 py-1 text-xs"
+                      aria-label={`Actions for ${cat.name}`}
+                      onClick={() => setCategoryActionId((prev) => (prev === cat.id ? null : cat.id))}
+                    >
+                      ...
+                    </button>
+                  </div>
+                  {categoryActionId === cat.id && (
+                    <div className="panel absolute right-2 top-10 z-20 w-32 p-1">
+                      <button className="btn btn-subtle mb-1 w-full justify-start text-xs" onClick={() => void quickEditCategory(cat)}>
+                        Edit
+                      </button>
+                      <button className="btn btn-danger w-full justify-start text-xs" onClick={() => void deleteCategory(cat)}>
+                        Delete
+                      </button>
                     </div>
                   )}
                 </li>
@@ -1025,7 +1351,168 @@ export default function TransactionsPage() {
             </ul>
           </Card>
         </div>
-        <Card className="mb-6 p-4">
+
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          <Card className="p-4">
+            <SectionHeader title="Location-Based Cash Reminder (Fixed Anchor)" />
+            <p className="mb-3 text-sm text-slate-500">
+              Add a predefined location and reminder window. Then evaluate to simulate a cash reminder prompt.
+            </p>
+            <FormRow columnsClass="sm:grid-cols-2">
+              <input
+                className={inputClass}
+                placeholder="Anchor label (ex: Office Gate)"
+                value={newAnchorLabel}
+                onChange={(e) => setNewAnchorLabel(e.target.value)}
+              />
+              <input
+                className={inputClass}
+                placeholder="Location key (ex: office-main)"
+                value={newAnchorLocationKey}
+                onChange={(e) => setNewAnchorLocationKey(e.target.value)}
+              />
+              <label className="text-xs text-slate-600">
+                Start hour
+                <input
+                  className={`${inputClass} mt-1`}
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={newAnchorHourStart}
+                  onChange={(e) => setNewAnchorHourStart(e.target.value)}
+                />
+              </label>
+              <label className="text-xs text-slate-600">
+                End hour
+                <input
+                  className={`${inputClass} mt-1`}
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={newAnchorHourEnd}
+                  onChange={(e) => setNewAnchorHourEnd(e.target.value)}
+                />
+              </label>
+            </FormRow>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button onClick={createLocationAnchor} className={primaryButtonClass}>Save Anchor</button>
+              <input
+                className={inputClass}
+                placeholder="Evaluate location key"
+                value={evalLocationKey}
+                onChange={(e) => setEvalLocationKey(e.target.value)}
+              />
+              <button onClick={evaluateReminder} className={subtleButtonClass}>Evaluate Reminder</button>
+            </div>
+            <ul className="mt-3 space-y-2 text-sm">
+              {locationAnchors.slice(0, 4).map((anchor) => (
+                <li key={anchor.id} className="rounded-md border border-slate-200 p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <strong>{anchor.label}</strong> ({anchor.locationKey}) | {anchor.hourStart}:00-{anchor.hourEnd}:00
+                      <div className="text-xs text-slate-500">{anchor.isActive ? "Active" : "Paused"}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="btn btn-subtle px-2 py-1 text-xs" onClick={() => void toggleAnchorActive(anchor)}>
+                        {anchor.isActive ? "Pause" : "Activate"}
+                      </button>
+                      <button className="btn btn-danger px-2 py-1 text-xs" onClick={() => void deleteAnchor(anchor)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+              {locationAnchors.length === 0 && <li className="text-slate-500">No anchors yet.</li>}
+            </ul>
+            <ul className="mt-3 space-y-2 text-xs text-slate-500">
+              {locationLogs.slice(0, 3).map((log) => (
+                <li key={log.id}>
+                  {new Date(log.remindedAt).toLocaleString()} - {log.message}
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          <Card className="p-4">
+            <SectionHeader title="Auto Add from Bank Message Sample" />
+            <p className="mb-3 text-sm text-slate-500">
+              Upload a sample screenshot and/or paste sample message text, parse, review, then confirm to create transaction.
+            </p>
+            <textarea
+              className={`${inputClass} min-h-24`}
+              placeholder="Paste sample SMS text (recommended for parsing accuracy)"
+              value={messageSampleText}
+              onChange={(e) => setMessageSampleText(e.target.value)}
+            />
+            <div className="mt-2">
+              <input
+                className={inputClass}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                onChange={(e) => setMessageImportFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button onClick={parseSampleMessageImage} className={primaryButtonClass}>Parse Sample</button>
+            </div>
+
+            <div className="mt-3 grid gap-2">
+              <label className="text-xs text-slate-600">
+                Parsed Amount
+                <input className={`${inputClass} mt-1`} value={confirmImportAmount} onChange={(e) => setConfirmImportAmount(e.target.value)} />
+              </label>
+              <label className="text-xs text-slate-600">
+                Parsed Type
+                <select
+                  className={`${selectClass} mt-1`}
+                  value={confirmImportType}
+                  onChange={(e) => setConfirmImportType(e.target.value as "INCOME" | "EXPENSE")}
+                >
+                  <option value="EXPENSE">EXPENSE</option>
+                  <option value="INCOME">INCOME</option>
+                </select>
+              </label>
+              <label className="text-xs text-slate-600">
+                Parsed Date
+                <input className={`${inputClass} mt-1`} type="date" value={confirmImportDate} onChange={(e) => setConfirmImportDate(e.target.value)} />
+              </label>
+              <label className="text-xs text-slate-600">
+                Parsed Note
+                <input className={`${inputClass} mt-1`} value={confirmImportNote} onChange={(e) => setConfirmImportNote(e.target.value)} />
+              </label>
+              <button onClick={confirmImportedTransaction} className={primaryButtonClass}>Confirm & Add Transaction</button>
+            </div>
+
+            <ul className="mt-3 space-y-2 text-xs">
+              {messageImports.slice(0, 5).map((item) => (
+                <li
+                  key={item.id}
+                  className={`cursor-pointer rounded-md border p-2 ${selectedImportId === item.id ? "border-sky-500" : "border-slate-200"}`}
+                  onClick={() => {
+                    setSelectedImportId(item.id);
+                    setConfirmImportAmount(item.parsedAmount ? String(item.parsedAmount) : "");
+                    setConfirmImportType((item.parsedType || "EXPENSE") as "INCOME" | "EXPENSE");
+                    setConfirmImportDate(item.parsedDate ? item.parsedDate.slice(0, 10) : todayIsoDate());
+                    setConfirmImportNote(item.parsedNote || "");
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <strong>{item.status}</strong>
+                    <span>Confidence {(item.confidence * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="text-slate-500">
+                    {item.parsedType || "UNKNOWN"} {item.parsedAmount ? currency(item.parsedAmount) : "N/A"} -{" "}
+                    {item.parsedNote || "No note"}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+
+        <Card className="mb-6 p-4" as="div">
+          <div ref={createSectionRef} />
           <SectionHeader title="Create Transaction" />
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             <label className="text-sm font-medium text-slate-700">
@@ -1158,11 +1645,11 @@ export default function TransactionsPage() {
         {!loading && (
           <>
             <h2 className="mb-3 text-lg font-semibold text-slate-900">Recent Transactions</h2>
-            {transactions.length === 0 ? (
+            {visibleTransactions.length === 0 ? (
               <p className="text-sm text-slate-600">No transactions yet.</p>
             ) : (
               <ul className="space-y-3">
-                {transactions.map((tx) => (
+                {visibleTransactions.map((tx) => (
                   <Card key={tx.id} className="p-4" as="li">
                     {editingId === tx.id ? (
                       <div className="rounded-md border border-slate-200 p-3">
@@ -1282,14 +1769,14 @@ export default function TransactionsPage() {
                 Prev
               </button>
               <span className="text-sm text-slate-600">Page {page}</span>
-              <button onClick={() => setPage((p) => p + 1)} disabled={transactions.length < pageSize} className={subtleButtonClass}>
+              <button onClick={() => setPage((p) => p + 1)} disabled={page * pageSize >= totalTransactions} className={subtleButtonClass}>
                 Next
               </button>
             </div>
           </>
         )}
       </div>
-    </div>
+    </AppShell>
   );
 }
 

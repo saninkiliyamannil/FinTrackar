@@ -80,7 +80,8 @@ export async function getSessionFromRequest(req: NextApiRequest) {
 
 export async function setSessionCookie(res: NextApiResponse, session: AppSession) {
   const token = await createSessionToken(session);
-  res.setHeader("Set-Cookie", serializeCookie(SESSION_COOKIE_NAME, token, SESSION_TTL_SECONDS));
+  // Session cookie (no Max-Age) forces sign-in after browser restart.
+  res.setHeader("Set-Cookie", serializeCookie(SESSION_COOKIE_NAME, token));
 }
 
 export function clearSessionCookie(res: NextApiResponse) {
